@@ -1,0 +1,139 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+docker-compose.override.yml
+
+# Flutter
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/.metadata
+
+# Data & Uploads
+backend/data/uploads/
+backend/data/models/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# MinIO data
+minio_data/
+
+# Redis data
+redis_data/
+
+# PostgreSQL data
+pg_data/
+
+chroma_data/
+
+# ==========================================
+# Web (.gitignore)
+# ==========================================
+# dependencies
+web/node_modules/
+web/.pnp
+web/.pnp.*
+web/.yarn/*
+!web/.yarn/patches
+!web/.yarn/plugins
+!web/.yarn/releases
+!web/.yarn/versions
+
+# testing
+web/coverage/
+
+# next.js
+web/.next/
+web/out/
+
+# production
+web/build/
+
+# misc
+web/*.pem
+
+# debug
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/.pnpm-debug.log*
+
+# vercel
+web/.vercel/
+
+# typescript
+web/*.tsbuildinfo
+web/next-env.d.ts
+
+# ==========================================
+# Mobile (.gitignore)
+# ==========================================
+# Miscellaneous
+mobile/*.class
+mobile/*.pyc
+mobile/.atom/
+mobile/.build/
+mobile/.buildlog/
+mobile/.history
+mobile/.svn/
+mobile/.swiftpm/
+mobile/migrate_working_dir/
+
+# IntelliJ related
+mobile/*.iml
+mobile/*.ipr
+mobile/*.iws
+
+# Flutter/Dart/Pub related
+mobile/**/doc/api/
+mobile/**/ios/Flutter/.last_build_id
+mobile/.pub-cache/
+mobile/.pub/
+mobile/coverage/
+
+# Symbolication related
+mobile/app.*.symbols
+
+# Obfuscation related
+mobile/app.*.map.json
+
+# Android Studio artifacts
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+
+# Widget Preview related
+mobile/.widget_preview/

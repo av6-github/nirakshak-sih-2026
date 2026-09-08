@@ -1,0 +1,125 @@
+# NIRIKSHAK AI — Legal Metrology Compliance Rule Definitions
+# Version: 2.0
+# Last Updated: 2026-09-06
+# Authority: Legal Metrology (Packaged Commodities) Rules, 2011
+#
+# This file is the single source of truth for all compliance rules.
+# The rule engine loads this file at runtime. To update rules,
+# edit this file and restart the backend — no code changes needed.
+
+version: "2.0"
+authority: "Legal Metrology (Packaged Commodities) Rules, 2011"
+
+rules:
+  - id: "RULE-LM-001"
+    title: "Mandatory Maximum Retail Price (MRP) Declaration"
+    field: "mrp"
+    description: >
+      Every pre-packaged commodity shall bear on each package the retail sale
+      price of the package, which shall be the maximum price at which the
+      commodity may be sold to the ultimate consumer inclusive of all taxes.
+    condition:
+      type: "field_present_and_positive"
+      field_path: "mrp"
+    review_threshold: 0.6
+    citation_keywords: "mrp retail price maximum"
+    act_reference: "Rule 6(1)(d) — Legal Metrology (Packaged Commodities) Rules, 2011"
+    severity: "CRITICAL"
+
+  - id: "RULE-LM-002"
+    title: "Mandatory Net Quantity & Unit Declaration"
+    field: "net_quantity"
+    description: >
+      Every package shall bear on it a declaration of the net quantity of the
+      commodity contained in it, expressed in terms of the standard unit of
+      weight or measure.
+    condition:
+      type: "field_and_unit_present"
+      field_path: "net_quantity"
+      unit_field_path: "unit"
+    review_threshold: 0.6
+    citation_keywords: "net quantity unit weight measure"
+    act_reference: "Rule 6(1)(b) — Legal Metrology (Packaged Commodities) Rules, 2011"
+    severity: "CRITICAL"
+
+  - id: "RULE-LM-003"
+    title: "Mandatory Manufacturer / Packer / Importer Details"
+    field: "manufacturer_name"
+    description: >
+      Every package shall bear on it the name and complete address of the
+      manufacturer or where the manufacturer is not the packer, the name
+      and address of the manufacturer and the packer, and in the case of
+      imported packages, the name and address of the importer.
+    condition:
+      type: "any_field_present"
+      field_paths:
+        - "manufacturer_name"
+        - "packer_name"
+        - "importer_name"
+    review_threshold: 0.0
+    citation_keywords: "manufacturer packer importer name address"
+    act_reference: "Rule 6(1)(a) — Legal Metrology (Packaged Commodities) Rules, 2011"
+    severity: "CRITICAL"
+
+  - id: "RULE-LM-004"
+    title: "Mandatory Month & Year of Manufacture / Packing"
+    field: "manufacture_date"
+    description: >
+      Every package shall bear the month and year in which the commodity is
+      manufactured or pre-packed or imported.
+    condition:
+      type: "fields_present"
+      field_paths:
+        - "manufacture_month"
+        - "manufacture_year"
+    review_threshold: 0.0
+    citation_keywords: "month year manufacture packed date"
+    act_reference: "Rule 6(1)(f) — Legal Metrology (Packaged Commodities) Rules, 2011"
+    severity: "HIGH"
+
+  - id: "RULE-LM-005"
+    title: "Mandatory Consumer Care Contact"
+    field: "consumer_care"
+    description: >
+      Every package shall carry the name, address, telephone number and
+      e-mail address, if available, of the person who can be or the office
+      which can be contacted, in case of consumer complaints.
+    condition:
+      type: "any_field_present"
+      field_paths:
+        - "consumer_care_phone"
+        - "consumer_care_email"
+        - "consumer_care_address"
+    review_threshold: 0.0
+    citation_keywords: "consumer care helpline email telephone"
+    act_reference: "Rule 6(1)(g) — Legal Metrology (Packaged Commodities) Rules, 2011"
+    severity: "HIGH"
+
+  - id: "RULE-LM-006"
+    title: "Mandatory Generic / Common Product Name"
+    field: "generic_product_name"
+    description: >
+      Every package shall bear the common or generic name of the commodity
+      contained in the package.
+    condition:
+      type: "field_present"
+      field_path: "generic_product_name"
+    review_threshold: 0.0
+    citation_keywords: "common generic name commodity"
+    act_reference: "Rule 6(1)(a) — Legal Metrology (Packaged Commodities) Rules, 2011"
+    severity: "MEDIUM"
+
+  - id: "RULE-LM-007"
+    title: "Mandatory Best Before / Expiry Date"
+    field: "expiry_date"
+    description: >
+      Every package of food, cosmetic, or other relevant commodity shall bear
+      the best before or expiry date as required by the relevant laws.
+    condition:
+      type: "field_present"
+      field_path: "expiry_date"
+    review_threshold: 0.6
+    citation_keywords: "best before expiry date use by"
+    act_reference: "Rule 6(5) — Legal Metrology (Packaged Commodities) Rules, 2011"
+    severity: "HIGH"
+

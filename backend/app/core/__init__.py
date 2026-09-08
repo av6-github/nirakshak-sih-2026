@@ -1,0 +1,1 @@
+"""NIRIKSHAK AI - Core Package."""
