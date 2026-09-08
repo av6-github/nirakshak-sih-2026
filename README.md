@@ -1,125 +1,100 @@
-# NIRIKSHAK AI
+# Nirikshak AI - Legal Metrology Compliance Scanner
 
-**AI-guided Legal Metrology Compliance and Citizen Trust Platform**
+Nirikshak AI is a full-stack solution designed to instantly evaluate packaged commodities for compliance against the Legal Metrology (Packaged Commodities) Rules, 2011. It extracts declarations (MRP, Expiry, Weight, etc.) using OCR & AI and verifies them against legal rules.
 
-> Photograph a packaged product → extract declarations → retrieve relevant legal knowledge → evaluate compliance → generate evidence → allow human verification → maintain compliance history.
+## 🚀 Repository Structure
+
+This repository is a monorepo containing three main components:
+1. **`backend/`**: FastAPI backend + Celery Worker for OCR (PaddleOCR) & AI Extraction (LLaMA 3).
+2. **`web/`**: Next.js Admin Dashboard for officers to review violations and trust scores.
+3. **`mobile/`**: Flutter mobile application for scanning products and submitting complaints.
 
 ---
 
-## Architecture
+## 🛠️ Prerequisites
 
-```
-Flutter Mobile App → FastAPI Backend → AI Processing Pipeline
-                         │
-              ┌──────────┼──────────┐
-              │          │          │
-         PostgreSQL   ChromaDB   MinIO
-              │          │          │
-              └──────────┼──────────┘
-                         │
-              ┌──────────┼──────────┐
-              │          │          │
-          PaddleOCR  RAG Pipeline  Rule Engine
-```
+Before you start, ensure you have the following installed:
+- [Docker & Docker Compose](https://www.docker.com/) (For Backend, Redis, ChromaDB, Minio)
+- [Node.js v18+](https://nodejs.org/) (For Web Dashboard)
+- [Flutter SDK](https://flutter.dev/docs/get-started/install) (For Mobile App)
+- [Supabase Account](https://supabase.com/) (For remote PostgreSQL Database)
 
-## Quick Start
+---
 
-### Prerequisites
+## ⚙️ Step 1: Backend Setup
 
-- Docker Desktop
-- Python 3.11+
-- Flutter SDK
-- Android Studio + Android SDK
-- Groq API Key ([get one here](https://console.groq.com/keys))
-
-### Setup
-
-1. Clone the repository
-2. Copy environment file:
+1. **Configure Environment Variables:**
+   Navigate to the root directory and copy `.env.example` to `.env`.
    ```bash
    cp .env.example .env
    ```
-3. Add your Groq API key to `.env`
-4. Start all services:
+   Open `.env` and configure your keys:
+   - Paste your **Supabase PostgreSQL Connection String** into `DATABASE_URL` (make sure it starts with `postgresql://`).
+   - Paste your **Groq API Key** into `GROQ_API_KEY`.
+
+2. **Start the Docker Containers:**
+   Run the following command from the root directory to build and start the backend, worker, redis, chromadb, and minio.
    ```bash
-   docker compose up --build
+   docker compose up -d --build
    ```
-5. Verify:
-   - Backend API: http://localhost:8080
-   - API Docs: http://localhost:8080/docs
-   - Health Check: http://localhost:8080/health
-   - MinIO Console: http://localhost:9001
-
-### Running Backend Locally (without Docker)
-
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8080
-```
-
-### Running Tests
-
-```bash
-cd backend
-pytest
-```
+   *Note: Upon first startup, the backend will automatically connect to your Supabase instance and dynamically create all necessary tables. No manual database migrations are required!*
 
 ---
 
-## Project Structure
+## 📱 Step 2: Mobile App Setup
 
-```
-sih/
-├── backend/
-│   ├── app/
-│   │   ├── api/            # FastAPI routes
-│   │   ├── core/           # Config, security, database, logging
-│   │   ├── models/         # SQLAlchemy ORM models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── services/       # Business logic
-│   │   │   ├── ocr/        # PaddleOCR integration
-│   │   │   ├── extraction/ # Declaration extraction
-│   │   │   ├── rag/        # RAG pipeline
-│   │   │   ├── rules/      # Deterministic rule engine
-│   │   │   ├── evidence/   # Evidence generation
-│   │   │   └── trust/      # Trust score calculation
-│   │   ├── repositories/   # Database access layer
-│   │   ├── workers/        # Celery background tasks
-│   │   └── tests/          # Test suite
-│   ├── alembic/            # Database migrations
-│   ├── data/               # Local data storage
-│   └── scripts/            # Utility scripts
-├── mobile/                 # Flutter application
-├── rag_documetns/          # Legal metrology documents for RAG
-├── docs/
-│   ├── TASKS.md            # Project task tracker
-│   └── LOGS.md             # Engineering decision log
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
+Because the mobile app runs on a physical device, it needs to know how to connect to your computer's backend.
 
-## Key Design Principles
+1. **Find your computer's Local Wi-Fi IP address** (e.g., `192.168.x.x`).
+2. **Update the API Client:**
+   Open `mobile/lib/core/api_client.dart` and change the `getBaseUrl` to match your PC's IP address:
+   ```dart
+   return 'http://YOUR_LOCAL_IP:8080';
+   ```
+3. **Run the App:**
+   Ensure your phone and PC are on the same Wi-Fi network. Then navigate to the `mobile` folder and run:
+   ```bash
+   cd mobile
+   flutter run
+   ```
 
-1. **AI extracts facts, rules make decisions** — LLMs never decide compliance
-2. **Evidence first** — Every result is traceable with full audit trail
-3. **Human authority** — Officers make final enforcement decisions
-4. **Modular services** — Clean separation of concerns
+   **📱 Want to run it wirelessly (Untethered)?**
+   Instead of using a USB cable, you can use Android's Wireless Debugging to hot-reload directly over Wi-Fi:
+   1. On your phone, go to **Developer Options** and turn on **Wireless Debugging**.
+   2. Tap "Wireless Debugging" -> **Pair device with pairing code**.
+   3. On your PC terminal, run: `adb pair [IP_ADDRESS:PORT_SHOWN_ON_PHONE]` and enter the 6-digit code.
+   4. Once paired, run: `adb connect [IP_ADDRESS:PORT_FOR_CONNECTION]`
+   5. Run `flutter run` and unplug your cable! Your phone is now debugging wirelessly.
 
-## Tech Stack
+   *(Alternatively, run `flutter build apk` to build an untethered release version that you can install permanently).*
 
-| Component | Technology |
-|---|---|
-| Mobile | Flutter + Riverpod + GoRouter |
-| Backend | FastAPI + SQLAlchemy + Pydantic |
-| Database | PostgreSQL |
-| Vector DB | ChromaDB |
-| OCR | PaddleOCR |
-| LLM | Groq (Llama 3.1) |
-| Embeddings | sentence-transformers (local) |
-| Task Queue | Celery + Redis |
-| Object Storage | MinIO |
-| Container | Docker Compose |
+---
+
+## 💻 Step 3: Web Dashboard Setup
+
+The Next.js dashboard also needs to connect to the backend API.
+
+1. **Update the API Endpoints:**
+   Search for the IP address in the following files and replace it with your PC's Local IP address (the same one used for the mobile app):
+   - `web/src/lib/api.ts`
+   - `web/src/app/dashboard/page.tsx`
+   - `web/src/components/DetailsModal.tsx`
+2. **Install Dependencies & Run:**
+   Navigate to the `web` folder:
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
+3. Open your browser to `http://localhost:3000`.
+
+---
+
+## 🧠 Managing the Legal Rule Repository (ChromaDB)
+The AI's knowledge base (RAG) is powered by local ChromaDB. It currently stores all ingested legal metrology acts and SOPs.
+If you need to ingest new PDF documents:
+1. Place the PDFs in `backend/rag_documents/`.
+2. Run the ingestion script inside the backend container:
+   ```bash
+   docker exec nirikshak-backend python scripts/ingest_legal_docs.py
+   ```
