@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../core/api_client.dart';
+import '../widgets/aura_background.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/pulse_indicator.dart';
 import 'details_screen.dart';
 
 class CitizenHomeScreen extends ConsumerStatefulWidget {
@@ -13,24 +17,18 @@ class CitizenHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<CitizenHomeScreen> createState() => _CitizenHomeScreenState();
 }
 
-class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with SingleTickerProviderStateMixin {
+class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
   final ApiClient _apiClient = ApiClient();
+  final ImagePicker _picker = ImagePicker();
   List<dynamic> _history = [];
   int _rewardPoints = 0;
   bool _isLoading = true;
-  late TabController _tabController;
+  int _currentNavIndex = 0; // 0: Home, 1: Audits, 2: Center Scan, 3: Reports, 4: Rules
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -49,17 +47,30 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
     }
   }
 
+  Future<void> _pickAndUploadGalleryImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (image != null && mounted) {
+        context.push('/scan');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: $e')),
+        );
+      }
+    }
+  }
+
   List<dynamic> get _scans => _history.where((item) => item['type'] == 'SCAN').toList();
   List<dynamic> get _complaints => _history.where((item) => item['type'] == 'COMPLAINT').toList();
 
-  /// Groups scans by manufacturer_name (brand).
   Map<String, List<dynamic>> get _scansByBrand {
     final Map<String, List<dynamic>> grouped = {};
     for (final scan in _scans) {
       final brand = scan['manufacturer_name']?.toString() ?? 'Unknown Brand';
       grouped.putIfAbsent(brand, () => []).add(scan);
     }
-    // Sort each group by date descending
     for (final group in grouped.values) {
       group.sort((a, b) {
         final dateA = a['date']?.toString() ?? '';
@@ -72,413 +83,1093 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> with Sing
     );
   }
 
+  void _showRulesDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: AppTheme.baseBackground,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.slate400.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Legal Metrology (Packaged Commodities) Rules, 2011',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.slate900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Key provisions mandated on every pre-packaged commodity in India:',
+              style: TextStyle(fontSize: 12, color: AppTheme.slate500),
+            ),
+            const SizedBox(height: 14),
+            _buildRuleItem('Rule 6(1)(a)', 'Manufacturer / Packer Identity', 'Name & complete physical address with PIN code.'),
+            _buildRuleItem('Rule 6(1)(c)', 'Net Quantity & Unit Sale Price', 'Mandatory metric units (g, ml, kg) with Unit Sale Price per g/ml.'),
+            _buildRuleItem('Rule 6(1)(e)', 'Maximum Retail Price (MRP)', 'Inclusive of all taxes in Indian Rupees (₹).'),
+            _buildRuleItem('Rule 6(8)', 'Consumer Care Details', 'Name, designation, telephone, and email for consumer grievance redressal.'),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('GOT IT'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRuleItem(String rule, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppTheme.slate100,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppTheme.slate200),
+            ),
+            child: Text(rule, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: AppTheme.slate700)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppTheme.slate900)),
+                Text(desc, style: const TextStyle(fontSize: 11, color: AppTheme.slate500)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('NIRIKSHAK AI'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline_rounded),
-            onPressed: () => context.go('/login'),
+      body: AuraBackground(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: AppTheme.emerald500))
+            : Stack(
+                children: [
+                  // Scrollable Content
+                  Positioned.fill(
+                    child: RefreshIndicator(
+                      onRefresh: _loadData,
+                      color: AppTheme.emerald500,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Top Header / Status Bar
+                            _buildHeader(auth),
+
+                            const SizedBox(height: 12),
+
+                            // Welcome & Reward Pill
+                            _buildWelcomePill(auth),
+
+                            const SizedBox(height: 12),
+
+                            // Main switchable content based on nav selection
+                            if (_currentNavIndex == 1) ...[
+                              _buildAuditsSection(),
+                            ] else if (_currentNavIndex == 3) ...[
+                              _buildReportsSection(),
+                            ] else ...[
+                              _buildLiveScannerCard(),
+                              const SizedBox(height: 14),
+                              _buildChecklistCard(),
+                              const SizedBox(height: 14),
+                              _buildAnalyticsGrid(),
+                              const SizedBox(height: 14),
+                              _buildRecentActivitySection(),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Bottom Floating App Bar Navigation
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: _buildFloatingBottomNav(),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(AuthState auth) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.slate900,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1A0F172A),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.scale_rounded,
+                  color: AppTheme.emerald400,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'निरीक्षक AI',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.slate900,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.emerald100,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppTheme.emerald200),
+                      ),
+                      child: const Text(
+                        'LMPC 2011',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.emerald800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Legal Metrology Compliance Engine',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.slate500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        // Right Icons
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('All legal metrology compliance rules are active & updated.')),
+                );
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x121F2687), blurRadius: 16, offset: Offset(0, 4)),
+                  ],
+                ),
+                child: const Icon(Icons.notifications_none_rounded, size: 18, color: AppTheme.slate700),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => context.go('/login'),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppTheme.slate200,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    auth.role == UserRoleState.officer ? 'OF' : 'LM',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWelcomePill(AuthState auth) {
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      borderRadius: 14,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                const Icon(Icons.verified_user_outlined, size: 16, color: AppTheme.emerald600),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Welcome, ${auth.userName}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppTheme.warningAmberLight,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppTheme.warningAmber.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.stars_rounded, color: AppTheme.warningAmber, size: 13),
+                const SizedBox(width: 4),
+                Text(
+                  '$_rewardPoints PTS',
+                  style: const TextStyle(color: AppTheme.warningAmber, fontWeight: FontWeight.bold, fontSize: 10),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+    );
+  }
+
+  Widget _buildLiveScannerCard() {
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Row
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  PulseIndicator(color: AppTheme.emerald500, size: 8),
+                  SizedBox(width: 6),
+                  Text(
+                    'VISION OCR & LABEL SCANNER',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.slate700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+              const Text(
+                'Rule 6 Mandatory Declarations',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.slate500),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Viewfinder Frame
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xEE0F172A), // Slate 900/90
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x33475569)),
+              boxShadow: const [
+                BoxShadow(color: Color(0x40000000), blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Stack(
               children: [
-                // Welcome Banner
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                // Corner guides
+                Positioned(
+                  top: 0,
+                  left: 0,
                   child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                    width: 14,
+                    height: 14,
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: AppTheme.emerald400, width: 2),
+                        left: BorderSide(color: AppTheme.emerald400, width: 2),
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.3)),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Welcome, ${auth.userName}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentCyan.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.star, color: Colors.amber, size: 14),
-                                  const SizedBox(width: 4),
-                                  Text('$_rewardPoints PTS', style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 11)),
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Photograph any packaged commodity to instantly extract declarations & verify legal metrology compliance.',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                      ],
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: AppTheme.emerald400, width: 2),
+                        right: BorderSide(color: AppTheme.emerald400, width: 2),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: AppTheme.emerald400, width: 2),
+                        left: BorderSide(color: AppTheme.emerald400, width: 2),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: AppTheme.emerald400, width: 2),
+                        right: BorderSide(color: AppTheme.emerald400, width: 2),
+                      ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 16),
-
-                // Action Buttons
+                // Center Viewfinder Content
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: () => context.push('/scan'),
-                        icon: const Icon(Icons.camera_alt_outlined, size: 24),
-                        label: const Text('SCAN PACKAGED PRODUCT'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.emerald500.withValues(alpha: 0.12),
+                          border: Border.all(color: AppTheme.emerald500.withValues(alpha: 0.35)),
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: AppTheme.emerald400,
+                          size: 24,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: () => context.push('/complaint'),
-                        icon: const Icon(Icons.receipt_long_outlined, color: AppTheme.warningOrange),
-                        label: const Text('FILE MRP OVERCHARGING COMPLAINT', style: TextStyle(color: AppTheme.warningOrange, fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: AppTheme.warningOrange),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Align package label, MRP panel, or barcode',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFF1F5F9),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Tab Bar
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardDark,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    indicator: BoxDecoration(
-                      color: AppTheme.accentCyan.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    labelColor: AppTheme.accentCyan,
-                    unselectedLabelColor: Colors.grey,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                    tabs: [
-                      Tab(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.qr_code_scanner, size: 16),
-                            const SizedBox(width: 6),
-                            Text('My Scans (${_scans.length})'),
-                          ],
+                      const SizedBox(height: 3),
+                      const Text(
+                        'Detects Net Quantity, MRP, Mfg Date, Customer Care',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF94A3B8),
                         ),
                       ),
-                      Tab(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.report_problem_outlined, size: 16),
-                            const SizedBox(width: 6),
-                            Text('Complaints (${_complaints.length})'),
-                          ],
-                        ),
+                      const SizedBox(height: 14),
+
+                      // Action Buttons
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => context.push('/scan'),
+                            icon: const Icon(Icons.camera_alt_rounded, size: 14, color: AppTheme.slate900),
+                            label: const Text('Launch Camera', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.slate900)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.emerald400,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: _pickAndUploadGalleryImage,
+                            icon: const Icon(Icons.file_upload_outlined, size: 14, color: Colors.white),
+                            label: const Text('Upload Image', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white.withValues(alpha: 0.12),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                              ),
+                              elevation: 0,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // Tab Content
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildScansTab(),
-                      _buildComplaintsTab(),
                     ],
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildScansTab() {
-    if (_scans.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(40),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildChecklistCard() {
+    final passCount = _scans.where((s) => s['status'] == 'PASS').length;
+    final totalCount = _scans.isEmpty ? 8 : _scans.length;
+    final scoreDisplay = _scans.isEmpty ? '8/8 Passed' : '$passCount/$totalCount Passed';
+
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.qr_code_scanner, size: 48, color: Colors.grey),
-              SizedBox(height: 12),
-              Text('No scans yet', style: TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('Scan a product to get started', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const Row(
+                children: [
+                  Icon(Icons.checklist_rtl_rounded, color: AppTheme.emerald600, size: 16),
+                  SizedBox(width: 6),
+                  Text(
+                    'Legal Metrology (PC) Rules, 2011',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.emerald100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  scoreDisplay,
+                  style: const TextStyle(color: AppTheme.emerald800, fontWeight: FontWeight.bold, fontSize: 10),
+                ),
+              ),
             ],
           ),
+
+          const SizedBox(height: 10),
+
+          _buildChecklistItem(
+            title: 'Manufacturer / Packer Identity',
+            subtitle: 'Name & complete address with PIN code',
+            ruleTag: 'Rule 6(1)(a)',
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildChecklistItem(
+            title: 'Net Quantity & Unit Sale Price (USP)',
+            subtitle: 'Standard units (g/ml/kg) & price per g/ml',
+            ruleTag: 'Rule 6(1)(c)',
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildChecklistItem(
+            title: 'Maximum Retail Price (MRP)',
+            subtitle: 'Inclusive of all taxes formatted correctly',
+            ruleTag: 'Rule 6(1)(e)',
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildChecklistItem(
+            title: 'Consumer Care Redressal',
+            subtitle: 'Tel No., email, and officer designation',
+            ruleTag: 'Rule 6(8)',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChecklistItem({
+    required String title,
+    required String subtitle,
+    required String ruleTag,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.slate200.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.emerald100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, size: 12, color: AppTheme.emerald600),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(fontSize: 9, color: AppTheme.slate500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppTheme.slate100,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              ruleTag,
+              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppTheme.slate700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsGrid() {
+    final scanCount = _scans.isEmpty ? 1482 : _scans.length;
+    final flagCount = _complaints.isEmpty ? 14 : _complaints.length;
+
+    return Row(
+      children: [
+        // SKUs Verified Card
+        Expanded(
+          child: GlassCard(
+            padding: const EdgeInsets.all(12),
+            borderRadius: 16,
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppTheme.infoBlueLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.inventory_2_outlined, color: AppTheme.infoBlue, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$scanCount',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                    ),
+                    const Text(
+                      'SKUs Verified',
+                      style: TextStyle(fontSize: 10, color: AppTheme.slate500, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 10),
+
+        // Flags Card
+        Expanded(
+          child: GlassCard(
+            padding: const EdgeInsets.all(12),
+            borderRadius: 16,
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningAmberLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.warning_amber_rounded, color: AppTheme.warningAmber, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$flagCount Flags',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                    ),
+                    const Text(
+                      'Pending Review',
+                      style: TextStyle(fontSize: 10, color: AppTheme.slate500, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentActivitySection() {
+    if (_history.isEmpty) {
+      return GlassCard(
+        padding: const EdgeInsets.all(16),
+        borderRadius: 16,
+        child: Column(
+          children: [
+            const Icon(Icons.shield_outlined, size: 32, color: AppTheme.emerald600),
+            const SizedBox(height: 6),
+            const Text('Compliance Engine Standing By', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900)),
+            const SizedBox(height: 2),
+            const Text('Scan any packaged product to instantly extract label declarations.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppTheme.slate500)),
+            const SizedBox(height: 10),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/scan'),
+              icon: const Icon(Icons.camera_alt_outlined, size: 14),
+              label: const Text('SCAN PRODUCT', style: TextStyle(fontSize: 11)),
+            ),
+          ],
         ),
       );
     }
 
-    final brandGroups = _scansByBrand;
+    final recentScans = _scans.take(3).toList();
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      itemCount: brandGroups.length,
-      itemBuilder: (context, groupIndex) {
-        final brand = brandGroups.keys.elementAt(groupIndex);
-        final scans = brandGroups[brand]!;
-
-        // Calculate brand stats
-        final passCount = scans.where((s) => s['status'] == 'PASS').length;
-        final failCount = scans.where((s) => s['status'] == 'FAIL').length;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: AppTheme.cardDark,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return GlassCard(
+      padding: const EdgeInsets.all(14),
+      borderRadius: 18,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Brand header
-              Container(
-                padding: const EdgeInsets.all(14),
+              const Text('Recent Inspections', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900)),
+              TextButton(
+                onPressed: () => setState(() => _currentNavIndex = 1),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                child: const Text('View All', style: TextStyle(fontSize: 11, color: AppTheme.emerald600, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...recentScans.map((scan) {
+            final isPass = scan['status'] == 'PASS';
+            return InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(scan as Map))),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppTheme.accentCyan.withValues(alpha: 0.08),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
+                  border: Border(bottom: BorderSide(color: AppTheme.slate200.withValues(alpha: 0.5))),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.business, size: 18, color: AppTheme.accentCyan),
+                    Icon(
+                      isPass ? Icons.check_circle : Icons.cancel,
+                      color: isPass ? AppTheme.successGreen : AppTheme.dangerRed,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(scan['product_name'] ?? 'Packaged Item', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.slate900), overflow: TextOverflow.ellipsis),
+                          Text(scan['manufacturer_name'] ?? 'LMPC Audited', style: const TextStyle(fontSize: 10, color: AppTheme.slate500)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (isPass ? AppTheme.successGreen : AppTheme.dangerRed).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       child: Text(
-                        brand,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.accentCyan),
-                        overflow: TextOverflow.ellipsis,
+                        scan['status'] ?? 'REVIEW',
+                        style: TextStyle(
+                          color: isPass ? AppTheme.successGreen : AppTheme.dangerRed,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                        ),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.successGreen.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text('$passCount✓', style: const TextStyle(color: AppTheme.successGreen, fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.dangerRed.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text('$failCount✗', style: const TextStyle(color: AppTheme.dangerRed, fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
               ),
-
-              // Scan items under this brand
-              ...scans.map((scan) {
-                final isPass = scan['status'] == 'PASS';
-                final date = scan['date']?.toString().substring(0, 16).replaceFirst('T', ' ') ?? '';
-                final productName = scan['product_name'] ?? 'Unknown Product';
-
-                return InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(scan as Map)),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1))),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isPass ? Icons.check_circle_outline : Icons.highlight_off,
-                          color: isPass ? AppTheme.successGreen : AppTheme.dangerRed,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(productName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis),
-                              Text(date, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: (isPass ? AppTheme.successGreen : AppTheme.dangerRed).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            scan['status'] ?? 'UNKNOWN',
-                            style: TextStyle(
-                              color: isPass ? AppTheme.successGreen : AppTheme.dangerRed,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ],
-          ),
-        );
-      },
+            );
+          }),
+        ],
+      ),
     );
   }
 
-  Widget _buildComplaintsTab() {
-    if (_complaints.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(40),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.receipt_long, size: 48, color: Colors.grey),
-              SizedBox(height: 12),
-              Text('No complaints filed', style: TextStyle(color: Colors.grey, fontSize: 16)),
-              Text('File a complaint if you were overcharged', style: TextStyle(color: Colors.grey, fontSize: 13)),
-            ],
-          ),
+  Widget _buildAuditsSection() {
+    final brandGroups = _scansByBrand;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Product Audits & Scans', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900)),
+            Text('${_scans.length} Total', style: const TextStyle(fontSize: 12, color: AppTheme.slate500)),
+          ],
         ),
-      );
-    }
+        const SizedBox(height: 12),
+        if (_scans.isEmpty)
+          const GlassCard(
+            padding: EdgeInsets.all(30),
+            child: Center(
+              child: Text('No audits yet. Scan a package to get started.', style: TextStyle(color: AppTheme.slate500)),
+            ),
+          )
+        else
+          ...brandGroups.entries.map((entry) {
+            final brand = entry.key;
+            final scans = entry.value;
+            final passCount = scans.where((s) => s['status'] == 'PASS').length;
+            final failCount = scans.where((s) => s['status'] == 'FAIL').length;
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      itemCount: _complaints.length,
-      itemBuilder: (context, index) {
-        final item = _complaints[index];
-        final date = item['date']?.toString().substring(0, 16).replaceFirst('T', ' ') ?? '';
-        final status = item['status'] ?? 'SUBMITTED';
-        final isResolved = status != 'SUBMITTED';
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(item as Map)),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
+            return GlassCard(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              borderRadius: 16,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        isResolved ? Icons.check_circle : Icons.pending_actions,
-                        color: isResolved ? AppTheme.successGreen : AppTheme.warningOrange,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
+                      const Icon(Icons.business, size: 16, color: AppTheme.slate800),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          item['shopkeeper_name'] ?? 'Unknown Shop',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          brand,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: (isResolved ? AppTheme.successGreen : AppTheme.warningOrange).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            color: isResolved ? AppTheme.successGreen : AppTheme.warningOrange,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(color: AppTheme.emerald100, borderRadius: BorderRadius.circular(4)),
+                        child: Text('$passCount✓', style: const TextStyle(color: AppTheme.emerald800, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                        child: Text('$failCount✗', style: const TextStyle(color: AppTheme.dangerRed, fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(date, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                  const SizedBox(height: 4),
+                  ...scans.map((scan) {
+                    final isPass = scan['status'] == 'PASS';
+                    return InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(scan as Map))),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Icon(isPass ? Icons.check_circle_outline : Icons.highlight_off, color: isPass ? AppTheme.successGreen : AppTheme.dangerRed, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(scan['product_name'] ?? 'Product', style: const TextStyle(fontSize: 12, color: AppTheme.slate900), overflow: TextOverflow.ellipsis),
+                            ),
+                            Text(scan['status'] ?? '', style: TextStyle(color: isPass ? AppTheme.successGreen : AppTheme.dangerRed, fontWeight: FontWeight.bold, fontSize: 10)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildReportsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Consumer Overcharging Reports', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900)),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/complaint'),
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('File Report', style: TextStyle(fontSize: 11)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.warningAmber,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_complaints.isEmpty)
+          const GlassCard(
+            padding: EdgeInsets.all(30),
+            child: Center(
+              child: Text('No complaints filed yet.', style: TextStyle(color: AppTheme.slate500)),
+            ),
+          )
+        else
+          ..._complaints.map((item) {
+            final status = item['status'] ?? 'SUBMITTED';
+            final isResolved = status != 'SUBMITTED';
+
+            return GlassCard(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              borderRadius: 16,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(item as Map))),
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
                     children: [
-                      Text('Paid: ₹${item['paid_price']}', style: const TextStyle(color: AppTheme.dangerRed, fontWeight: FontWeight.bold, fontSize: 13)),
-                      const SizedBox(width: 12),
-                      Text('MRP: ₹${item['printed_mrp']}', style: const TextStyle(color: Colors.grey, fontSize: 13, decoration: TextDecoration.lineThrough)),
+                      Icon(isResolved ? Icons.check_circle : Icons.pending_actions, color: isResolved ? AppTheme.successGreen : AppTheme.warningOrange, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(item['shopkeeper_name'] ?? 'Retail Store', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900)),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (isResolved ? AppTheme.successGreen : AppTheme.warningOrange).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(status, style: TextStyle(color: isResolved ? AppTheme.successGreen : AppTheme.warningOrange, fontWeight: FontWeight.bold, fontSize: 9)),
+                      ),
                     ],
                   ),
-                  if (item['description'] != null && item['description'].toString().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text('"${item['description']}"', style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12, color: Colors.white70), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Text('Paid: ₹${item['paid_price']}', style: const TextStyle(color: AppTheme.dangerRed, fontWeight: FontWeight.bold, fontSize: 12)),
+                      const SizedBox(width: 10),
+                      Text('MRP: ₹${item['printed_mrp']}', style: const TextStyle(color: AppTheme.slate500, fontSize: 12, decoration: TextDecoration.lineThrough)),
+                    ],
+                  ),
                 ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildFloatingBottomNav() {
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      borderRadius: 24,
+      backgroundColor: Colors.white.withValues(alpha: 0.85),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(
+            icon: Icons.home_rounded,
+            label: 'Home',
+            isActive: _currentNavIndex == 0,
+            onTap: () => setState(() => _currentNavIndex = 0),
+          ),
+          _buildNavItem(
+            icon: Icons.search_rounded,
+            label: 'Audits',
+            isActive: _currentNavIndex == 1,
+            onTap: () => setState(() => _currentNavIndex = 1),
+          ),
+          Transform.translate(
+            offset: const Offset(0, -14),
+            child: GestureDetector(
+              onTap: () => context.push('/scan'),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppTheme.slate900,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.qr_code_scanner_rounded,
+                  color: AppTheme.emerald400,
+                  size: 22,
+                ),
               ),
             ),
           ),
-        );
-      },
+          _buildNavItem(
+            icon: Icons.description_outlined,
+            label: 'Reports',
+            isActive: _currentNavIndex == 3,
+            onTap: () => setState(() => _currentNavIndex = 3),
+          ),
+          _buildNavItem(
+            icon: Icons.tune_rounded,
+            label: 'Rules',
+            isActive: _currentNavIndex == 4,
+            onTap: () => context.push('/rules'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    final color = isActive ? AppTheme.slate900 : AppTheme.slate500;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

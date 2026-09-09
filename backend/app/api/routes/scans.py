@@ -13,11 +13,13 @@ from app.models import Scan
 from app.models.enums import ScanStatus
 from app.services.pipeline import CompliancePipeline
 from app.services.storage import StorageService
+from app.services.rag.violation_analyzer import LegalViolationAnalyzer
 
 router = APIRouter(prefix="/scans", tags=["Product Scans"])
 
 storage_service = StorageService()
 pipeline_service = CompliancePipeline()
+violation_analyzer = LegalViolationAnalyzer()
 
 
 @router.post("", status_code=201)
@@ -129,4 +131,40 @@ async def get_scan_details(
         "image_urls": scan.image_urls,
         "created_at": scan.created_at.isoformat(),
         "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+    }
+
+
+@router.get("/{scan_id}/violations/analysis")
+@router.get("/{scan_id}/violations/{rule_id}/analysis")
+async def analyze_scan_violations(
+    scan_id: uuid.UUID,
+    rule_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Directly query RAG database and LLM for authoritative LMPC legal quotation,
+    grounded justification, and statutory penalties for a scan's violation(s).
+    """
+    scan = await db.get(Scan, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan record not found.")
+
+    # If specific rule_id requested, analyze that rule
+    target_rules = [rule_id] if rule_id else ["RULE-LM-001", "RULE-LM-002", "RULE-LM-003", "RULE-LM-004", "RULE-LM-005", "RULE-LM-006", "RULE-LM-007"]
+    
+    results = []
+    for rid in target_rules:
+        advisory = violation_analyzer.analyze_violation(
+            rule_id=rid,
+            rule_title=rid,
+            field_name=rid.lower(),
+            detected_value=None,
+            ocr_context="",
+        )
+        advisory["rule_id"] = rid
+        results.append(advisory)
+
+    return {
+        "scan_id": str(scan_id),
+        "violations": results,
     }

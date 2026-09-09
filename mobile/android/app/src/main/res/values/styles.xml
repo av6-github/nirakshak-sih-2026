@@ -15,4 +15,15 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+
+    <!-- Theme applied specifically to UCropActivity to guarantee proper status bar padding,
+         window insets, and clear touch access to the cross (cancel) and tick (done) actions -->
+    <style name="UCropTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:fitsSystemWindows">true</item>
+        <item name="android:statusBarColor">#0F172A</item>
+        <item name="colorPrimary">#0F172A</item>
+        <item name="colorPrimaryDark">#0F172A</item>
+        <item name="colorAccent">#10B981</item>
+    </style>
 </resources>

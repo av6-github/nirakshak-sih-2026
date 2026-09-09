@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -14,7 +13,7 @@ class ApiClient {
     }
     // Automatically use the computer's local Wi-Fi IP address for wireless app usage!
     // Both phone and PC must be on the same Wi-Fi network.
-    return 'http://192.168.29.65:8080';
+    return 'http://192.168.0.147:8080';
   }
 
   ApiClient._internal() {
@@ -60,6 +59,14 @@ class ApiClient {
 
   Future<Map<String, dynamic>> processScan(String scanId) async {
     final response = await dio.post('/scans/$scanId/process');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> getViolationAnalysis(String scanId, {String? ruleId}) async {
+    final path = ruleId != null && ruleId.isNotEmpty
+        ? '/scans/$scanId/violations/$ruleId/analysis'
+        : '/scans/$scanId/violations/analysis';
+    final response = await dio.get(path);
     return response.data;
   }
 
@@ -136,5 +143,30 @@ class ApiClient {
       'notes': notes,
     });
     return response.data;
+  }
+
+  /// Retrieve twice-daily price surveillance history and violation history for a product.
+  Future<Map<String, dynamic>> getProductEcommerceTwin(String scanId, {String? productId}) async {
+    final path = (productId != null && productId.isNotEmpty)
+        ? '/products/$productId/ecommerce-twin'
+        : '/products/by-scan/$scanId/ecommerce-twin';
+    final response = await dio.get(path);
+    return Map<String, dynamic>.from(response.data);
+  }
+
+  /// Retrieve all registered Legal Metrology rules with statutory references.
+  Future<List<dynamic>> fetchRules() async {
+    final response = await dio.get('/rules');
+    return response.data;
+  }
+
+  /// Query the RAG-powered Legal Metrology AI Chatbot.
+  Future<Map<String, dynamic>> sendChatMessage(String message, {String? ruleId, String? context}) async {
+    final response = await dio.post('/chat', data: {
+      'message': message,
+      if (ruleId != null && ruleId.isNotEmpty) 'rule_id': ruleId,
+      if (context != null && context.isNotEmpty) 'context': context,
+    });
+    return Map<String, dynamic>.from(response.data);
   }
 }

@@ -111,8 +111,21 @@ class RAGPipeline:
             metadata_filter=metadata_filter if metadata_filter else None,
         )
 
+        # Robust Fallback: If metadata filter produced 0 docs, retry with unrestricted semantic search
+        if rule_id_filter and not retrieved_docs:
+            logger.info(
+                f"Filtered search for rule_id '{rule_id_filter}' returned 0 results. "
+                f"Falling back to unrestricted semantic search for query: {query[:60]}..."
+            )
+            retrieved_docs = self.chroma.search(
+                query=query,
+                top_k=top_k,
+                metadata_filter=None,
+            )
+
         return {
             "query": query,
             "retrieved_documents_count": len(retrieved_docs),
             "retrieved_documents": retrieved_docs,
         }
+

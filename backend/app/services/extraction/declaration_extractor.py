@@ -39,6 +39,7 @@ class ExtractedDeclarations:
     consumer_care_email: Optional[str] = None
     consumer_care_address: Optional[str] = None
     expiry_date: Optional[str] = None
+    batch_number: Optional[str] = None
     product_category: str = "Unknown"
     dynamic_fields: Dict[str, Any] = None
     field_confidence: Dict[str, float] = None
@@ -119,6 +120,16 @@ class DeclarationExtractor:
             if len(re.sub(r"\D", "", phone_str)) >= 8:
                 results["consumer_care_phone"] = phone_str
 
+        # 6. Batch / Lot Number Extraction
+        batch_match = re.search(
+            r"(?i)(?:b\.?\s*no\.?|batch\s*(?:no\.?|number|#)?|lot\s*(?:no\.?|#)?)[\s:]*([A-Za-z0-9\/-]+)",
+            text,
+        )
+        if batch_match:
+            b_val = batch_match.group(1).strip()
+            if len(b_val) >= 2 and not b_val.lower().startswith("date"):
+                results["batch_number"] = b_val
+
         return results
 
     # =========================================================================
@@ -139,7 +150,7 @@ Your task is to identify the Product Category and dynamically extract ALL factua
 CRITICAL INSTRUCTIONS:
 1. Product Category: Identify the product type (e.g., "Food", "Cosmetics", "Book", "Electronics").
 2. Dynamic Field Extraction: Extract ALL relevant declarations. Do not limit yourself to a predefined list.
-3. Standardized Naming: IF APPLICABLE, you MUST use these exact keys: manufacturer_name, packer_name, importer_name, generic_product_name, net_quantity, unit, mrp, manufacture_month, manufacture_year, expiry_date, consumer_care_name, consumer_care_phone, consumer_care_email, consumer_care_address.
+3. Standardized Naming: IF APPLICABLE, you MUST use these exact keys: manufacturer_name, packer_name, importer_name, generic_product_name, net_quantity, unit, mrp, manufacture_month, manufacture_year, expiry_date, consumer_care_name, consumer_care_phone, consumer_care_email, consumer_care_address, batch_number.
 4. Cross-Image Logic Deduction: Logically merge information split across labels.
 
 CRITICAL EDGE CASES & FEW-SHOT EXAMPLES:
@@ -181,16 +192,30 @@ OCR TEXT TO PROCESS:
 \"\"\"
 """
         try:
-            chat_completion = self.groq_client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are a precise JSON extraction engine. Respond with raw JSON only."},
-                    {"role": "user", "content": prompt},
-                ],
-                model=settings.llm_model or "llama-3.1-8b-instant",
-                temperature=0.0,
-                response_format={"type": "json_object"},
-            )
-            content = chat_completion.choices[0].message.content
+            candidate_models = [settings.llm_model, "groq/compound-mini", "groq/compound", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+            models_to_try = [m for m in dict.fromkeys(candidate_models) if m]
+            content = None
+
+            for model_name in models_to_try:
+                try:
+                    chat_completion = self.groq_client.chat.completions.create(
+                        messages=[
+                            {"role": "system", "content": "You are a precise JSON extraction engine. Respond with raw JSON only."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        model=model_name,
+                        temperature=0.0,
+                        response_format={"type": "json_object"},
+                    )
+                    content = chat_completion.choices[0].message.content
+                    if content:
+                        break
+                except Exception as me:
+                    logger.warning(f"Groq model {model_name} failed in declaration_extractor: {me}")
+
+            if not content:
+                return {}
+
             parsed = json.loads(content)
             logger.info("Groq LLM extraction succeeded.")
             return parsed
@@ -219,7 +244,7 @@ OCR TEXT TO PROCESS:
         fields = [
             "manufacturer_name", "packer_name", "importer_name",
             "generic_product_name", "net_quantity", "unit", "mrp", "currency",
-            "manufacture_month", "manufacture_year", "expiry_date",
+            "manufacture_month", "manufacture_year", "expiry_date", "batch_number",
             "consumer_care_name", "consumer_care_phone",
             "consumer_care_email", "consumer_care_address",
         ]
@@ -298,6 +323,7 @@ OCR TEXT TO PROCESS:
             consumer_care_email=merged.get("consumer_care_email"),
             consumer_care_address=merged.get("consumer_care_address"),
             expiry_date=merged.get("expiry_date"),
+            batch_number=merged.get("batch_number"),
             product_category=product_category,
             dynamic_fields=l2,
             field_confidence=confidence_scores,

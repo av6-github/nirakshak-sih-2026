@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from app.models.enums import ComplianceStatus
 from app.services.extraction.declaration_extractor import ExtractedDeclarations
+from app.services.rag.violation_analyzer import LegalViolationAnalyzer
 
 RULES_YAML_PATH = os.path.join(os.path.dirname(__file__), "rule_definitions.yaml")
 
@@ -29,6 +30,8 @@ class RuleEvaluationResult:
     confidence: float
     evidence_package: Dict[str, Any]
     citation: Optional[Dict[str, str]] = None
+    penalty: Optional[str] = None
+    rule_code: Optional[str] = None
 
 
 @dataclass
@@ -57,6 +60,7 @@ class RuleEngine:
         self._version: str = "unknown"
         self._authority: str = ""
         self._load_rules()
+        self.violation_analyzer = LegalViolationAnalyzer()
 
     def _load_rules(self):
         """Load rule definitions from YAML file."""
@@ -122,6 +126,7 @@ class RuleEngine:
         scan_id: str,
         source_image_url: str,
         rag_context: Optional[Dict[str, Any]],
+        ocr_text: str = "",
     ) -> RuleEvaluationResult:
         """Evaluate a single rule definition against extracted declarations."""
 
@@ -231,10 +236,31 @@ class RuleEngine:
                 reason = f"{rule_title} declaration is missing"
                 confidence = 0.0
 
-        # Get citation only for failures
+        # Ground violations with RAG + LLM analysis
         citation = None
-        if status == ComplianceStatus.FAIL:
-            citation = self._get_citation(rule_def, rag_context)
+        penalty = None
+        rule_code = rule_def.get("act_reference", "").split("—")[0].strip()
+
+        if status in [ComplianceStatus.FAIL, ComplianceStatus.REVIEW]:
+            try:
+                advisory = self.violation_analyzer.analyze_violation(
+                    rule_id=rule_id,
+                    rule_title=rule_title,
+                    field_name=rule_def.get("field", ""),
+                    detected_value=detected_value,
+                    ocr_context=ocr_text,
+                )
+                rule_code = advisory.get("rule_code") or rule_code
+                penalty = advisory.get("penalty")
+                if advisory.get("reason"):
+                    reason = advisory.get("reason")
+                citation = {
+                    "act_name": advisory.get("act_name", rule_def.get("act_reference", "Legal Metrology (Packaged Commodities) Rules, 2011")),
+                    "quote": advisory.get("legal_quote", ""),
+                    "rule_reference": rule_code or rule_def.get("act_reference", ""),
+                }
+            except Exception as e:
+                citation = self._get_citation(rule_def, rag_context)
 
         # Build evidence package
         field_name = rule_def["field"]
@@ -262,6 +288,8 @@ class RuleEngine:
             confidence=confidence,
             evidence_package=evidence_package,
             citation=citation,
+            penalty=penalty,
+            rule_code=rule_code,
         )
 
     def evaluate_declarations(
@@ -270,6 +298,7 @@ class RuleEngine:
         declarations: ExtractedDeclarations,
         source_image_url: str = "/uploads/scan.jpg",
         rag_context: Optional[Dict[str, Any]] = None,
+        ocr_text: str = "",
     ) -> ComplianceReport:
         """
         Evaluate extracted declarations against all rules loaded from YAML.
@@ -283,6 +312,7 @@ class RuleEngine:
                 scan_id=scan_id,
                 source_image_url=source_image_url,
                 rag_context=rag_context,
+                ocr_text=ocr_text,
             )
             results.append(result)
 

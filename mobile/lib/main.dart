@@ -8,6 +8,7 @@ import 'screens/complaint_screen.dart';
 import 'screens/compliance_result_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/officer_dashboard_screen.dart';
+import 'screens/rules_chat_screen.dart';
 import 'screens/scan_screen.dart';
 
 void main() {
@@ -44,6 +45,20 @@ final _router = GoRouter(
     GoRoute(
       path: '/complaint',
       builder: (context, state) => const ComplaintScreen(),
+    ),
+    GoRoute(
+      path: '/rules',
+      builder: (context, state) {
+        final extra = (state.extra as Map<String, dynamic>?) ?? {};
+        return RulesChatScreen(
+          initialTabIndex: extra['tabIndex'] as int? ?? 0,
+          initialQuery: extra['initialQuery'] as String?,
+          quotedRuleCode: extra['ruleCode'] as String?,
+          quotedRuleTitle: extra['ruleTitle'] as String?,
+          violationReason: extra['reason'] as String?,
+          violationPenalty: extra['penalty'] as String?,
+        );
+      },
     ),
   ],
 );

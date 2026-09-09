@@ -4,6 +4,8 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:go_router/go_router.dart';
 import '../core/api_client.dart';
 import '../core/theme.dart';
+import '../widgets/aura_background.dart';
+import '../widgets/glass_card.dart';
 import 'camera_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -28,14 +30,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   final List<String> _steps = ['Front', 'Back', 'Left', 'Right'];
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
   /// Captures a single image via camera, crops it, and returns the File (or null if cancelled).
   Future<File?> _captureAndCrop(String side) async {
-    // 1. Capture using custom camera screen
     final File? capturedFile = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => CameraScreen(sideName: side)),
@@ -43,18 +39,29 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     if (capturedFile == null) return null;
 
-    // 2. Crop
     final croppedFile = await ImageCropper().cropImage(
       sourcePath: capturedFile.path,
       uiSettings: [
         AndroidUiSettings(
-          toolbarTitle: 'Crop & Align $side Label',
-          toolbarColor: const Color(0xFF0F172A),
+          toolbarTitle: 'Align & Crop $side Label',
+          toolbarColor: AppTheme.slate900,
           toolbarWidgetColor: Colors.white,
+          statusBarColor: AppTheme.slate900,
+          activeControlsWidgetColor: AppTheme.emerald400,
           initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: false,
+          hideBottomControls: false,
+          showCropGrid: true,
+          cropGridColor: const Color(0x9934D399),
+          cropFrameColor: const Color(0xFF34D399),
+          cropGridRowCount: 2,
+          cropGridColumnCount: 2,
         ),
-        IOSUiSettings(title: 'Crop & Align'),
+        IOSUiSettings(
+          title: 'Align & Crop $side',
+          doneButtonTitle: 'Confirm',
+          cancelButtonTitle: 'Cancel',
+        ),
       ],
     );
 
@@ -136,34 +143,37 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     }
   }
 
-  /// Shows a dialog asking if the user wants to scan an optional side.
   Future<bool?> _showOptionalDialog(String side) {
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.cardDark,
+        backgroundColor: AppTheme.baseBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.camera_alt_outlined, color: AppTheme.accentCyan),
+            const Icon(Icons.camera_alt_outlined, color: AppTheme.emerald600),
             const SizedBox(width: 8),
-            Text('Scan $side Side?', style: const TextStyle(color: Colors.white)),
+            Text('Scan $side Side?', style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         content: Text(
-          'Would you like to capture the $side side of the product? This is optional and can improve accuracy.',
-          style: const TextStyle(color: Colors.white70),
+          'Would you like to capture the $side side of the product? This is optional and enhances declaration detection accuracy.',
+          style: const TextStyle(color: AppTheme.slate700, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('SKIP', style: TextStyle(color: Colors.grey)),
+            child: const Text('SKIP', style: TextStyle(color: AppTheme.slate500)),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.camera_alt, size: 16),
-            label: const Text('SCAN'),
+            icon: const Icon(Icons.camera_alt, size: 14),
+            label: const Text('CAPTURE'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.emerald500,
+              foregroundColor: AppTheme.slate900,
+            ),
           ),
         ],
       ),
@@ -203,9 +213,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Scan failed: ${e.toString()}'),
+            content: Text('Scan evaluation failed: ${e.toString()}'),
             duration: const Duration(seconds: 6),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.dangerRed,
           ),
         );
       }
@@ -225,160 +235,192 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Product Scanner'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: _isProcessing
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: AppTheme.accentCyan),
-                  SizedBox(height: 24),
-                  Text('Extracting declarations & evaluating...', style: TextStyle(color: Colors.white70)),
-                ],
-              ),
-            )
-          : Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Stepper indicator
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: List.generate(4, (index) {
-                      final isActive = index == _currentStep;
-                      final isDone = _getImageForStep(index) != null;
-                      return Expanded(
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isDone
-                                    ? AppTheme.successGreen
-                                    : (isActive ? AppTheme.accentCyan : Colors.transparent),
-                                border: Border.all(
-                                  color: isActive || isDone ? Colors.transparent : Colors.grey,
-                                  width: 2,
-                                ),
-                              ),
-                              child: isDone
-                                  ? const Icon(Icons.check, size: 18, color: Colors.white)
-                                  : Center(
-                                      child: Text(
-                                        '${index + 1}',
-                                        style: TextStyle(
-                                          color: isActive ? Colors.white : Colors.grey,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _steps[index],
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isActive || isDone ? Colors.white : Colors.grey,
-                                fontWeight: isDone ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                            if (index > 1)
-                              Text(
-                                '(optional)',
-                                style: TextStyle(fontSize: 9, color: Colors.grey.withValues(alpha: 0.6)),
-                              ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Preview area: shows captured images or start prompt
-                  Expanded(
-                    child: _frontImage == null && !_scanFlowActive
-                        ? _buildStartPrompt()
-                        : _buildImagePreview(),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Main action button
-                  if (!_scanFlowActive) ...[
-                    ElevatedButton.icon(
-                      onPressed: _frontImage == null ? _runScanFlow : _startComplianceScan,
-                      icon: Icon(_frontImage == null ? Icons.camera_alt : Icons.analytics),
-                      label: Text(_frontImage == null ? 'START SCAN' : 'SUBMIT FOR ANALYSIS'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _frontImage == null ? AppTheme.accentCyan : AppTheme.successGreen,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      body: AuraBackground(
+        child: _isProcessing
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 50,
+                      height: 50,
+                      child: CircularProgressIndicator(
+                        color: AppTheme.emerald500,
+                        strokeWidth: 4,
                       ),
                     ),
-                    if (_frontImage != null) ...[
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _frontImage = null;
-                            _backImage = null;
-                            _leftImage = null;
-                            _rightImage = null;
-                            _currentStep = 0;
-                          });
-                          _runScanFlow();
-                        },
-                        icon: const Icon(Icons.replay, color: AppTheme.warningOrange),
-                        label: const Text('RESCAN ALL', style: TextStyle(color: AppTheme.warningOrange)),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppTheme.warningOrange),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'AI OCR Extraction & Rule Evaluation...',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.slate900),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Checking Legal Metrology (PC) Rules, 2011 declarations',
+                      style: TextStyle(fontSize: 12, color: AppTheme.slate500),
+                    ),
+                  ],
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Stepper Indicator
+                    GlassCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      borderRadius: 16,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(4, (index) {
+                          final isActive = index == _currentStep;
+                          final isDone = _getImageForStep(index) != null;
+                          return Expanded(
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: isDone
+                                        ? AppTheme.emerald500
+                                        : (isActive ? AppTheme.slate900 : Colors.transparent),
+                                    border: Border.all(
+                                      color: isActive || isDone ? Colors.transparent : AppTheme.slate400,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: isDone
+                                      ? const Icon(Icons.check, size: 16, color: Colors.white)
+                                      : Center(
+                                          child: Text(
+                                            '${index + 1}',
+                                            style: TextStyle(
+                                              color: isActive ? Colors.white : AppTheme.slate500,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _steps[index],
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isActive || isDone ? AppTheme.slate900 : AppTheme.slate500,
+                                    fontWeight: isDone || isActive ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                if (index > 1)
+                                  const Text(
+                                    '(optional)',
+                                    style: TextStyle(fontSize: 8, color: AppTheme.slate400),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Preview Area
+                    Expanded(
+                      child: _frontImage == null && !_scanFlowActive
+                          ? _buildStartPrompt()
+                          : _buildImagePreview(),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Main Action Buttons
+                    if (!_scanFlowActive) ...[
+                      ElevatedButton.icon(
+                        onPressed: _frontImage == null ? _runScanFlow : _startComplianceScan,
+                        icon: Icon(_frontImage == null ? Icons.camera_alt_rounded : Icons.analytics_outlined, color: AppTheme.slate900),
+                        label: Text(
+                          _frontImage == null ? 'START GUIDED SCAN' : 'SUBMIT FOR COMPLIANCE AUDIT',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.emerald400,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                       ),
+                      if (_frontImage != null) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _frontImage = null;
+                              _backImage = null;
+                              _leftImage = null;
+                              _rightImage = null;
+                              _currentStep = 0;
+                            });
+                            _runScanFlow();
+                          },
+                          icon: const Icon(Icons.replay_rounded, color: AppTheme.warningAmber, size: 16),
+                          label: const Text('RESCAN ALL SIDES', style: TextStyle(color: AppTheme.warningAmber, fontWeight: FontWeight.bold, fontSize: 12)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppTheme.warningAmber),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ],
                     ],
                   ],
-                ],
+                ),
               ),
-            ),
+      ),
     );
   }
 
   Widget _buildStartPrompt() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppTheme.accentCyan.withValues(alpha: 0.1),
-              border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.4), width: 2),
+    return GlassCard(
+      padding: const EdgeInsets.all(24),
+      borderRadius: 20,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.emerald100,
+                border: Border.all(color: AppTheme.emerald400, width: 2),
+              ),
+              child: const Icon(Icons.center_focus_strong_rounded, size: 44, color: AppTheme.emerald600),
             ),
-            child: const Icon(Icons.center_focus_strong, size: 60, color: AppTheme.accentCyan),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Ready to Scan',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              'Tap "START SCAN" to begin the guided capture flow. You will photograph the front and back (required), then optionally the left and right sides.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+            const SizedBox(height: 18),
+            const Text(
+              'Multi-Angle Scanner Ready',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.slate900),
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Photograph the front and back of the product package (required), then optionally capture sides to ensure all declarations are captured.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.slate500, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -392,14 +434,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     if (captured.isEmpty) {
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: AppTheme.accentCyan),
-            SizedBox(height: 16),
-            Text('Opening camera...', style: TextStyle(color: Colors.grey)),
-          ],
-        ),
+        child: CircularProgressIndicator(color: AppTheme.emerald500),
       );
     }
 
@@ -416,7 +451,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         return Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.successGreen.withValues(alpha: 0.5), width: 2),
+            border: Border.all(color: AppTheme.emerald500, width: 2),
+            boxShadow: const [
+              BoxShadow(color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 2)),
+            ],
           ),
           child: Stack(
             fit: StackFit.expand,
@@ -431,7 +469,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppTheme.successGreen,
+                    color: AppTheme.emerald600,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(

@@ -103,6 +103,8 @@ class CompliancePipeline:
         result = await db.execute(stmt)
         existing = result.scalars().first()
         
+        from app.api.routes.products import _generate_or_get_twice_daily_price_history
+
         if existing:
             # Update metadata with latest declarations
             existing.extra_metadata = existing.extra_metadata or {}
@@ -114,25 +116,31 @@ class CompliancePipeline:
                 "manufacture_month": declarations.manufacture_month,
                 "manufacture_year": declarations.manufacture_year,
             }
+            existing.extra_metadata["price_history"] = _generate_or_get_twice_daily_price_history(
+                declarations.mrp, existing.extra_metadata
+            )
             db.add(existing)
             return existing
         
         # Create new product record (Digital Twin)
+        meta = {
+            "latest_declarations": {
+                "mrp": declarations.mrp,
+                "net_quantity": declarations.net_quantity,
+                "unit": declarations.unit,
+                "manufacturer_name": declarations.manufacturer_name,
+                "manufacture_month": declarations.manufacture_month,
+                "manufacture_year": declarations.manufacture_year,
+            }
+        }
+        meta["price_history"] = _generate_or_get_twice_daily_price_history(declarations.mrp, meta)
+
         product = Product(
             product_name=prod_name or "Unknown Product",
             brand=mfr,
             manufacturer=mfr,
             category=None,
-            extra_metadata={
-                "latest_declarations": {
-                    "mrp": declarations.mrp,
-                    "net_quantity": declarations.net_quantity,
-                    "unit": declarations.unit,
-                    "manufacturer_name": declarations.manufacturer_name,
-                    "manufacture_month": declarations.manufacture_month,
-                    "manufacture_year": declarations.manufacture_year,
-                }
-            }
+            extra_metadata=meta,
         )
         db.add(product)
         await db.flush()
@@ -278,12 +286,13 @@ class CompliancePipeline:
                 top_k=3,
             )
 
-            # 6. Deterministic Rule Engine Evaluation
+            # 6. Deterministic Rule Engine Evaluation with RAG LLM Violation Grounding
             report = self.rule_engine.evaluate_declarations(
                 scan_id=str(scan.id),
                 declarations=declarations,
                 source_image_url=primary_image_path,
                 rag_context=rag_context,
+                ocr_text=combined_ocr_text,
             )
 
             # Update Scan Status
@@ -365,15 +374,23 @@ class CompliancePipeline:
                 "digital_twin_discrepancies": discrepancies,
                 "extracted_declarations": {
                     "mrp": declarations.mrp,
+                    "currency": getattr(declarations, "currency", "INR"),
                     "net_quantity": declarations.net_quantity,
                     "unit": declarations.unit,
                     "manufacturer_name": declarations.manufacturer_name,
+                    "packer_name": getattr(declarations, "packer_name", None),
+                    "importer_name": getattr(declarations, "importer_name", None),
                     "generic_product_name": declarations.generic_product_name,
                     "manufacture_month": declarations.manufacture_month,
                     "manufacture_year": declarations.manufacture_year,
+                    "consumer_care_name": getattr(declarations, "consumer_care_name", None),
                     "consumer_care_email": declarations.consumer_care_email,
                     "consumer_care_phone": declarations.consumer_care_phone,
+                    "consumer_care_address": getattr(declarations, "consumer_care_address", None),
                     "expiry_date": getattr(declarations, "expiry_date", None),
+                    "batch_number": getattr(declarations, "batch_number", None),
+                    **({k: v for k, v in (getattr(declarations, "dynamic_fields", None) or {}).items() if v is not None}),
+                    **({k: v for k, v in (getattr(declarations, "raw_extractions", None) or {}).items() if v is not None}),
                 },
                 "compliance_summary": {
                     "passed_rules": report.passed_count,
@@ -384,11 +401,13 @@ class CompliancePipeline:
                 "evaluations": [
                     {
                         "rule_id": r.rule_id,
+                        "rule_code": getattr(r, "rule_code", None) or r.rule_id,
                         "rule_title": r.rule_title,
                         "status": r.status.value,
                         "reason": r.reason,
                         "evidence_hash": r.evidence_package.get("file_hash"),
                         "citation": r.citation,
+                        "penalty": getattr(r, "penalty", None),
                     }
                     for r in report.rule_results
                 ],

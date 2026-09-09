@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/aura_background.dart';
+import '../widgets/glass_card.dart';
 
 class LoginScreen extends ConsumerWidget {
   const LoginScreen({super.key});
@@ -12,103 +14,146 @@ class LoginScreen extends ConsumerWidget {
     final auth = ref.watch(authProvider);
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0F172A), Color(0xFF090D16)],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Icon(
-                  Icons.verified_user_rounded,
-                  size: 72,
-                  color: AppTheme.accentCyan,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'NIRIKSHAK AI',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.5,
+      body: AuraBackground(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Logo Badge
+              Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppTheme.slate900,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x260F172A),
+                        blurRadius: 16,
+                        offset: Offset(0, 6),
                       ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'AI-Guided Legal Metrology & Citizen Trust Platform',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                ),
-                const SizedBox(height: 48),
-
-                Text(
-                  'SELECT USER ROLE',
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.1,
-                    fontSize: 12,
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.scale_rounded,
+                      color: AppTheme.emerald400,
+                      size: 34,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
+              ),
+              const SizedBox(height: 14),
 
-                _RoleCard(
-                  title: 'Citizen / Consumer',
-                  subtitle: 'Scan products, check compliance & file complaints',
-                  icon: Icons.person_outline_rounded,
-                  isSelected: auth.role == UserRoleState.citizen,
-                  onTap: () {
-                    ref.read(authProvider.notifier).selectRole(UserRoleState.citizen);
-                  },
+              // Title
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'निरीक्षक AI',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                      color: AppTheme.slate900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: AppTheme.emerald100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.emerald200),
+                    ),
+                    child: const Text(
+                      'LMPC 2011',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.emerald800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Legal Metrology Compliance Engine',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.slate500, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+
+              const SizedBox(height: 36),
+
+              const Text(
+                'SELECT USER ROLE',
+                style: TextStyle(
+                  color: AppTheme.slate700,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.1,
+                  fontSize: 11,
                 ),
+              ),
+              const SizedBox(height: 12),
 
-                const SizedBox(height: 12),
+              _RoleCard(
+                title: 'Citizen / Consumer',
+                subtitle: 'Scan products, check compliance & file complaints',
+                icon: Icons.person_outline_rounded,
+                isSelected: auth.role == UserRoleState.citizen,
+                onTap: () {
+                  ref.read(authProvider.notifier).selectRole(UserRoleState.citizen);
+                },
+              ),
 
-                _RoleCard(
-                  title: 'Enforcement Officer',
-                  subtitle: 'Inspect products, review queue & verify evidence',
-                  icon: Icons.badge_outlined,
-                  isSelected: auth.role == UserRoleState.officer,
-                  onTap: () {
-                    ref.read(authProvider.notifier).selectRole(UserRoleState.officer);
-                  },
+              const SizedBox(height: 10),
+
+              _RoleCard(
+                title: 'Enforcement Officer',
+                subtitle: 'Inspect products, review queue & verify evidence',
+                icon: Icons.badge_outlined,
+                isSelected: auth.role == UserRoleState.officer,
+                onTap: () {
+                  ref.read(authProvider.notifier).selectRole(UserRoleState.officer);
+                },
+              ),
+
+              const SizedBox(height: 10),
+
+              _RoleCard(
+                title: 'System Administrator',
+                subtitle: 'Manage legal metrology rules & system analytics',
+                icon: Icons.admin_panel_settings_outlined,
+                isSelected: auth.role == UserRoleState.admin,
+                onTap: () {
+                  ref.read(authProvider.notifier).selectRole(UserRoleState.admin);
+                },
+              ),
+
+              const SizedBox(height: 28),
+
+              ElevatedButton(
+                onPressed: () {
+                  if (auth.role == UserRoleState.officer) {
+                    context.go('/officer');
+                  } else {
+                    context.go('/home');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.slate900,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-
-                const SizedBox(height: 12),
-
-                _RoleCard(
-                  title: 'System Administrator',
-                  subtitle: 'Manage legal metrology rules & system analytics',
-                  icon: Icons.admin_panel_settings_outlined,
-                  isSelected: auth.role == UserRoleState.admin,
-                  onTap: () {
-                    ref.read(authProvider.notifier).selectRole(UserRoleState.admin);
-                  },
-                ),
-
-                const SizedBox(height: 36),
-
-                ElevatedButton(
-                  onPressed: () {
-                    if (auth.role == UserRoleState.officer) {
-                      context.go('/officer');
-                    } else {
-                      context.go('/home');
-                    }
-                  },
-                  child: const Text('CONTINUE TO PLATFORM'),
-                ),
-              ],
-            ),
+                child: const Text('CONTINUE TO PLATFORM', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+            ],
           ),
         ),
       ),
@@ -133,43 +178,52 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return GlassCard(
+      padding: const EdgeInsets.all(14),
+      borderRadius: 16,
+      borderColor: isSelected ? AppTheme.emerald500 : AppTheme.glassBorder,
+      borderWidth: isSelected ? 2 : 1,
+      backgroundColor: isSelected ? Colors.white.withValues(alpha: 0.95) : AppTheme.glassFill,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.cardDark : AppTheme.surfaceDark,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? AppTheme.accentCyan : const Color(0xFF334155),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: isSelected ? AppTheme.accentCyan : Colors.grey),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                  ),
-                ],
-              ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isSelected ? AppTheme.emerald100 : AppTheme.slate100,
+              borderRadius: BorderRadius.circular(10),
             ),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: AppTheme.accentCyan),
-          ],
-        ),
+            child: Icon(
+              icon,
+              color: isSelected ? AppTheme.emerald800 : AppTheme.slate700,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: isSelected ? AppTheme.slate900 : AppTheme.slate800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: AppTheme.slate500, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          if (isSelected)
+            const Icon(Icons.check_circle_rounded, color: AppTheme.emerald600, size: 20),
+        ],
       ),
     );
   }

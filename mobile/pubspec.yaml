@@ -22,6 +22,7 @@ dependencies:
   image_cropper: ^8.0.2
   camera: ^0.12.1
   url_launcher: ^6.3.2
+  palette_generator: ^0.3.3+7
 
 dev_dependencies:
   flutter_test:
