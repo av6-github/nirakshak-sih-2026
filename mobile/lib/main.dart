@@ -44,7 +44,17 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/complaint',
-      builder: (context, state) => const ComplaintScreen(),
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return ComplaintScreen(
+          initialMrp: (extra?['mrp'] as num?)?.toDouble(),
+          initialProductName: extra?['product_name'] as String?,
+          initialManufacturer: extra?['manufacturer_name'] as String?,
+          initialShopkeeperName: extra?['shopkeeper_name'] as String?,
+          initialProductImagePath: extra?['product_image_path'] as String?,
+          scanId: extra?['scan_id'] as String?,
+        );
+      },
     ),
     GoRoute(
       path: '/rules',

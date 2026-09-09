@@ -18,10 +18,19 @@ from app.services.storage import StorageService
 router = APIRouter(prefix="/complaints", tags=["Citizen Complaints"])
 storage_service = StorageService()
 
+def _safe_uuid(val: Any) -> uuid.UUID:
+    if isinstance(val, uuid.UUID):
+        return val
+    try:
+        return uuid.UUID(str(val))
+    except Exception:
+        return uuid.uuid5(uuid.NAMESPACE_DNS, str(val) if val else "default-user")
+
+
 @router.post("", status_code=201)
 async def create_complaint(
-    citizen_id: uuid.UUID = Form(...),
-    product_id: Optional[uuid.UUID] = Form(None),
+    citizen_id: str = Form(...),
+    product_id: Optional[str] = Form(None),
     paid_price: float = Form(...),
     printed_mrp: float = Form(...),
     shopkeeper_name: Optional[str] = Form(None),
@@ -29,20 +38,24 @@ async def create_complaint(
     description: Optional[str] = Form(None),
     receipt_image: Optional[UploadFile] = File(None),
     product_image: Optional[UploadFile] = File(None),
+    receipt_image_url: Optional[str] = Form(None),
+    product_image_url: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     File a citizen complaint for overcharging (Paid Price > Printed MRP) or packaging violation.
-    Now supports multipart/form-data for image evidence.
+    Now supports multipart/form-data for image evidence or existing image URLs.
     """
     is_overcharging = paid_price > printed_mrp
+    citizen_uuid = _safe_uuid(citizen_id)
+    product_uuid = _safe_uuid(product_id) if product_id else None
 
     # Auto-create mock citizen if doesn't exist (Development only)
-    citizen = await db.get(User, citizen_id)
+    citizen = await db.get(User, citizen_uuid)
     if not citizen:
         citizen = User(
-            id=citizen_id,
-            email=f"citizen_{citizen_id}@nirikshak.gov.in",
+            id=citizen_uuid,
+            email=f"citizen_{str(citizen_uuid)[:8]}@nirikshak.gov.in",
             hashed_password="mock",
             full_name="Simulated Citizen",
             role="CITIZEN"
@@ -50,17 +63,17 @@ async def create_complaint(
         db.add(citizen)
         await db.commit()
 
-    receipt_url = None
+    receipt_url = receipt_image_url
     if receipt_image and receipt_image.filename:
         receipt_url = await storage_service.save_upload_file(receipt_image, subfolder="complaints")
         
-    product_url = None
+    product_url = product_image_url
     if product_image and product_image.filename:
         product_url = await storage_service.save_upload_file(product_image, subfolder="complaints")
 
     complaint = Complaint(
-        citizen_id=citizen_id,
-        product_id=product_id,
+        citizen_id=citizen_uuid,
+        product_id=product_uuid,
         receipt_image_url=receipt_url,
         product_image_url=product_url,
         paid_price=paid_price,
@@ -111,27 +124,30 @@ async def list_complaints(
 
 
 class ComplaintReviewRequest(BaseModel):
-    officer_id: uuid.UUID
-    status: ComplaintStatus  # e.g. ACCEPTED, REJECTED
+    officer_id: Any
+    status: ComplaintStatus
     resolution_notes: Optional[str] = None
 
 @router.patch("/{complaint_id}/review")
 async def review_complaint(
-    complaint_id: uuid.UUID,
+    complaint_id: str,
     review_data: ComplaintReviewRequest,
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """Officer reviews and resolves a citizen complaint."""
-    complaint = await db.get(Complaint, complaint_id)
+    complaint_uuid = _safe_uuid(complaint_id)
+    officer_uuid = _safe_uuid(review_data.officer_id)
+
+    complaint = await db.get(Complaint, complaint_uuid)
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
 
     # Auto-create mock officer if doesn't exist (Development only)
-    officer = await db.get(User, review_data.officer_id)
+    officer = await db.get(User, officer_uuid)
     if not officer:
         officer = User(
-            id=review_data.officer_id,
-            email=f"officer_{review_data.officer_id}@nirikshak.gov.in",
+            id=officer_uuid,
+            email=f"officer_{str(officer_uuid)[:8]}@nirikshak.gov.in",
             hashed_password="mock",
             full_name="Simulated Officer",
             role="OFFICER"
@@ -140,7 +156,7 @@ async def review_complaint(
         await db.commit()
 
     complaint.status = review_data.status
-    complaint.officer_id = review_data.officer_id
+    complaint.officer_id = officer_uuid
     if review_data.resolution_notes:
         complaint.resolution_notes = review_data.resolution_notes
 

@@ -6,6 +6,7 @@ import '../core/api_client.dart';
 import '../core/theme.dart';
 import '../widgets/aura_background.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/nirikshak_app_bar.dart';
 import 'camera_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -233,46 +234,49 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Product Scanner'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      backgroundColor: AppTheme.auraBg,
       body: AuraBackground(
-        child: _isProcessing
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(
-                      width: 50,
-                      height: 50,
-                      child: CircularProgressIndicator(
-                        color: AppTheme.emerald500,
-                        strokeWidth: 4,
+        child: SafeArea(
+          child: _isProcessing
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(
+                        width: 50,
+                        height: 50,
+                        child: CircularProgressIndicator(
+                          color: AppTheme.emerald500,
+                          strokeWidth: 4,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'AI OCR Extraction & Rule Evaluation...',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.slate900),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Checking Legal Metrology (PC) Rules, 2011 declarations',
-                      style: TextStyle(fontSize: 12, color: AppTheme.slate500),
-                    ),
-                  ],
-                ),
-              )
-            : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Stepper Indicator
+                      const SizedBox(height: 24),
+                      const Text(
+                        'AI OCR Extraction & Rule Evaluation...',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.slate900),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Checking Legal Metrology (PC) Rules, 2011 declarations',
+                        style: TextStyle(fontSize: 12, color: AppTheme.slate500),
+                      ),
+                    ],
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      NirikshakAppBar(
+                        badgeText: 'VISION OCR',
+                        subtitle: 'Packaging Declaration Scanner',
+                        showBackButton: true,
+                        onBack: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Stepper Indicator
                     GlassCard(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       borderRadius: 16,
@@ -383,6 +387,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   ],
                 ),
               ),
+        ),
       ),
     );
   }

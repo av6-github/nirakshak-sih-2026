@@ -35,13 +35,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       : super(AuthState(
           isAuthenticated: true,
           userId: '00000000-0000-0000-0000-000000000001',
-          userName: 'Citizen Inspector',
+          userName: 'Dev',
           role: UserRoleState.citizen,
         ));
 
   void selectRole(UserRoleState newRole) {
-    String name = 'Citizen User';
-    if (newRole == UserRoleState.officer) name = 'Officer Sharma (Badge OFF-882)';
+    String name = 'Dev';
+    if (newRole == UserRoleState.officer) name = 'Officer Raj';
     if (newRole == UserRoleState.admin) name = 'System Administrator';
 
     state = state.copyWith(role: newRole, userName: name);

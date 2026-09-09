@@ -10,10 +10,26 @@ import '../providers/auth_provider.dart';
 import '../widgets/aura_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/pulse_indicator.dart';
+import '../widgets/nirikshak_app_bar.dart';
 import 'camera_screen.dart';
 
 class ComplaintScreen extends ConsumerStatefulWidget {
-  const ComplaintScreen({super.key});
+  final double? initialMrp;
+  final String? initialProductName;
+  final String? initialManufacturer;
+  final String? initialShopkeeperName;
+  final String? initialProductImagePath;
+  final String? scanId;
+
+  const ComplaintScreen({
+    super.key,
+    this.initialMrp,
+    this.initialProductName,
+    this.initialManufacturer,
+    this.initialShopkeeperName,
+    this.initialProductImagePath,
+    this.scanId,
+  });
 
   @override
   ConsumerState<ComplaintScreen> createState() => _ComplaintScreenState();
@@ -24,16 +40,45 @@ class _ComplaintScreenState extends ConsumerState<ComplaintScreen> {
   final ApiClient _apiClient = ApiClient();
   final ImagePicker _picker = ImagePicker();
 
-  final TextEditingController _paidPriceController = TextEditingController();
-  final TextEditingController _mrpController = TextEditingController();
-  final TextEditingController _shopkeeperNameController = TextEditingController();
-  final TextEditingController _shopAddressController = TextEditingController();
-  final TextEditingController _descController = TextEditingController();
+  late final TextEditingController _paidPriceController;
+  late final TextEditingController _mrpController;
+  late final TextEditingController _shopkeeperNameController;
+  late final TextEditingController _shopAddressController;
+  late final TextEditingController _descController;
 
   String? _receiptImagePath;
   String? _productImagePath;
 
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _paidPriceController = TextEditingController();
+    _mrpController = TextEditingController(
+      text: widget.initialMrp != null && widget.initialMrp! > 0
+          ? widget.initialMrp!.toStringAsFixed(widget.initialMrp!.truncateToDouble() == widget.initialMrp ? 0 : 2)
+          : '',
+    );
+    _shopkeeperNameController = TextEditingController(text: widget.initialShopkeeperName ?? '');
+    _shopAddressController = TextEditingController();
+    
+    final StringBuffer initialDesc = StringBuffer();
+    if (widget.initialProductName != null && widget.initialProductName!.isNotEmpty) {
+      initialDesc.write('Product: ${widget.initialProductName}. ');
+    }
+    if (widget.initialManufacturer != null && widget.initialManufacturer!.isNotEmpty) {
+      initialDesc.write('Manufacturer: ${widget.initialManufacturer}. ');
+    }
+    if (widget.scanId != null && widget.scanId!.isNotEmpty) {
+      initialDesc.write('(Ref Scan ID: ${widget.scanId!.substring(0, widget.scanId!.length > 8 ? 8 : widget.scanId!.length)}). ');
+    }
+    _descController = TextEditingController(text: initialDesc.toString());
+
+    if (widget.initialProductImagePath != null && widget.initialProductImagePath!.isNotEmpty) {
+      _productImagePath = widget.initialProductImagePath;
+    }
+  }
 
   @override
   void dispose() {
@@ -194,10 +239,12 @@ class _ComplaintScreenState extends ConsumerState<ComplaintScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
-        _showSuccessDialog({
-          'is_overcharging_detected': paidPrice > mrp,
-          'price_difference': paidPrice > mrp ? paidPrice - mrp : 0.0,
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit grievance to enforcement queue: $e'),
+            backgroundColor: AppTheme.dangerRed,
+          ),
+        );
       }
     }
   }
@@ -246,32 +293,35 @@ class _ComplaintScreenState extends ConsumerState<ComplaintScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('File MRP Complaint', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      backgroundColor: AppTheme.auraBg,
       body: AuraBackground(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Top Statutory Banner
-                const GlassCard(
-                  padding: EdgeInsets.all(16),
-                  borderRadius: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.shield_outlined, color: AppTheme.emerald600, size: 18),
-                          SizedBox(width: 6),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  NirikshakAppBar(
+                    badgeText: 'RULE 18(2)',
+                    subtitle: 'LMPC MRP Grievance Redressal',
+                    showBackButton: true,
+                    onBack: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Top Statutory Banner
+                  const GlassCard(
+                    padding: EdgeInsets.all(16),
+                    borderRadius: 16,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.shield_outlined, color: AppTheme.emerald600, size: 18),
+                            SizedBox(width: 6),
                           Text(
                             'REPORT MRP OVERCHARGING',
                             style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1, fontSize: 12, color: AppTheme.slate900),
@@ -389,8 +439,9 @@ class _ComplaintScreenState extends ConsumerState<ComplaintScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// High-Tech Evidence Attachment Section matching the Home Screen Scanner
   Widget _buildEvidenceSection() {

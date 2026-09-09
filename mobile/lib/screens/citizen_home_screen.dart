@@ -8,6 +8,7 @@ import '../core/api_client.dart';
 import '../widgets/aura_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/pulse_indicator.dart';
+import '../widgets/nirikshak_app_bar.dart';
 import 'details_screen.dart';
 
 class CitizenHomeScreen extends ConsumerStatefulWidget {
@@ -83,90 +84,6 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
     );
   }
 
-  void _showRulesDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: AppTheme.baseBackground,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppTheme.slate400.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Legal Metrology (Packaged Commodities) Rules, 2011',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.slate900),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Key provisions mandated on every pre-packaged commodity in India:',
-              style: TextStyle(fontSize: 12, color: AppTheme.slate500),
-            ),
-            const SizedBox(height: 14),
-            _buildRuleItem('Rule 6(1)(a)', 'Manufacturer / Packer Identity', 'Name & complete physical address with PIN code.'),
-            _buildRuleItem('Rule 6(1)(c)', 'Net Quantity & Unit Sale Price', 'Mandatory metric units (g, ml, kg) with Unit Sale Price per g/ml.'),
-            _buildRuleItem('Rule 6(1)(e)', 'Maximum Retail Price (MRP)', 'Inclusive of all taxes in Indian Rupees (₹).'),
-            _buildRuleItem('Rule 6(8)', 'Consumer Care Details', 'Name, designation, telephone, and email for consumer grievance redressal.'),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('GOT IT'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRuleItem(String rule, String title, String desc) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppTheme.slate100,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppTheme.slate200),
-            ),
-            child: Text(rule, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: AppTheme.slate700)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppTheme.slate900)),
-                Text(desc, style: const TextStyle(fontSize: 11, color: AppTheme.slate500)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
@@ -232,133 +149,60 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
   }
 
   Widget _buildHeader(AuthState auth) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
+    return NirikshakAppBar(
+      badgeText: 'LMPC 2011',
+      subtitle: 'Legal Metrology Compliance Engine',
+      trailing: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('All legal metrology compliance rules are active & updated.')),
+              );
+            },
+            child: Container(
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: AppTheme.slate900,
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white.withValues(alpha: 0.72),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
                 boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x1A0F172A),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
+                  BoxShadow(color: Color(0x121F2687), blurRadius: 16, offset: Offset(0, 4)),
                 ],
               ),
-              child: const Center(
-                child: Icon(
-                  Icons.scale_rounded,
-                  color: AppTheme.emerald400,
-                  size: 20,
+              child: const Icon(Icons.notifications_none_rounded, size: 18, color: AppTheme.slate700),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => context.go('/login'),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.slate200,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2)),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  auth.role == UserRoleState.officer ? 'RAJ' : 'DEV',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.slate900),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'निरीक्षक AI',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.slate900,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.emerald100,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.emerald200),
-                      ),
-                      child: const Text(
-                        'LMPC 2011',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.emerald800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Legal Metrology Compliance Engine',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.slate500,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-
-        // Right Icons
-        Row(
-          children: [
-            GestureDetector(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('All legal metrology compliance rules are active & updated.')),
-                );
-              },
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.72),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x121F2687), blurRadius: 16, offset: Offset(0, 4)),
-                  ],
-                ),
-                child: const Icon(Icons.notifications_none_rounded, size: 18, color: AppTheme.slate700),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => context.go('/login'),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppTheme.slate200,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2)),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    auth.role == UserRoleState.officer ? 'OF' : 'LM',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.slate900),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildWelcomePill(AuthState auth) {
+    final String displayName = auth.userName.isNotEmpty ? auth.userName : 'Dev';
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       borderRadius: 14,
@@ -372,7 +216,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Welcome, ${auth.userName}',
+                    'Welcome, $displayName',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.slate900),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -429,7 +273,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                   ),
                 ],
               ),
-              const Text(
+              Text(
                 'Rule 6 Mandatory Declarations',
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.slate500),
               ),
@@ -1082,62 +926,73 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
 
   Widget _buildFloatingBottomNav() {
     return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       borderRadius: 24,
       backgroundColor: Colors.white.withValues(alpha: 0.85),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(
-            icon: Icons.home_rounded,
-            label: 'Home',
-            isActive: _currentNavIndex == 0,
-            onTap: () => setState(() => _currentNavIndex = 0),
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.home_rounded,
+              label: 'Home',
+              isActive: _currentNavIndex == 0,
+              onTap: () => setState(() => _currentNavIndex = 0),
+            ),
           ),
-          _buildNavItem(
-            icon: Icons.search_rounded,
-            label: 'Audits',
-            isActive: _currentNavIndex == 1,
-            onTap: () => setState(() => _currentNavIndex = 1),
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.search_rounded,
+              label: 'Audits',
+              isActive: _currentNavIndex == 1,
+              onTap: () => setState(() => _currentNavIndex = 1),
+            ),
           ),
-          Transform.translate(
-            offset: const Offset(0, -14),
-            child: GestureDetector(
-              onTap: () => context.push('/scan'),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppTheme.slate900,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2.5),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x33000000),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
+          Expanded(
+            child: Center(
+              child: Transform.translate(
+                offset: const Offset(0, -5),
+                child: GestureDetector(
+                  onTap: () => context.push('/scan'),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.slate900,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.qr_code_scanner_rounded,
-                  color: AppTheme.emerald400,
-                  size: 22,
+                    child: const Icon(
+                      Icons.qr_code_scanner_rounded,
+                      color: AppTheme.emerald400,
+                      size: 22,
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-          _buildNavItem(
-            icon: Icons.description_outlined,
-            label: 'Reports',
-            isActive: _currentNavIndex == 3,
-            onTap: () => setState(() => _currentNavIndex = 3),
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.description_outlined,
+              label: 'Reports',
+              isActive: _currentNavIndex == 3,
+              onTap: () => setState(() => _currentNavIndex = 3),
+            ),
           ),
-          _buildNavItem(
-            icon: Icons.tune_rounded,
-            label: 'Rules',
-            isActive: _currentNavIndex == 4,
-            onTap: () => context.push('/rules'),
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.tune_rounded,
+              label: 'Rules',
+              isActive: _currentNavIndex == 4,
+              onTap: () => context.push('/rules'),
+            ),
           ),
         ],
       ),

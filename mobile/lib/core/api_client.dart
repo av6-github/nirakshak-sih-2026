@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -88,19 +89,39 @@ class ApiClient {
   Future<Map<String, dynamic>> fileComplaint(
       String citizenId, double paidPrice, double printedMrp, String shopkeeperName, String shopAddress, String description,
       {String? receiptPath, String? productPath}) async {
+    final validCitizenId = citizenId.trim().isNotEmpty
+        ? citizenId.trim()
+        : '00000000-0000-0000-0000-000000000001';
+
     final map = <String, dynamic>{
-      'citizen_id': citizenId,
+      'citizen_id': validCitizenId,
       'paid_price': paidPrice,
       'printed_mrp': printedMrp,
       'shopkeeper_name': shopkeeperName,
       'shop_address': shopAddress,
       'description': description,
     };
-    if (receiptPath != null) {
-      map['receipt_image'] = await MultipartFile.fromFile(receiptPath, filename: 'receipt.jpg');
+
+    if (receiptPath != null && receiptPath.isNotEmpty) {
+      if (receiptPath.startsWith('http://') || receiptPath.startsWith('https://')) {
+        map['receipt_image_url'] = receiptPath;
+      } else {
+        final f = File(receiptPath);
+        if (f.existsSync()) {
+          map['receipt_image'] = await MultipartFile.fromFile(receiptPath, filename: 'receipt.jpg');
+        }
+      }
     }
-    if (productPath != null) {
-      map['product_image'] = await MultipartFile.fromFile(productPath, filename: 'product.jpg');
+
+    if (productPath != null && productPath.isNotEmpty) {
+      if (productPath.startsWith('http://') || productPath.startsWith('https://')) {
+        map['product_image_url'] = productPath;
+      } else {
+        final f = File(productPath);
+        if (f.existsSync()) {
+          map['product_image'] = await MultipartFile.fromFile(productPath, filename: 'product.jpg');
+        }
+      }
     }
     
     final formData = FormData.fromMap(map);

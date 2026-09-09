@@ -11,18 +11,22 @@ import '../widgets/glass_card.dart';
 import '../widgets/pulse_indicator.dart';
 import '../widgets/interactive_product_carton_3d.dart';
 import '../widgets/price_history_chart.dart';
+import '../widgets/nirikshak_app_bar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
 import 'rules_chat_screen.dart';
 
-class DetailsScreen extends StatefulWidget {
+class DetailsScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> item;
+  final bool? isOfficer;
 
-  const DetailsScreen({super.key, required this.item});
+  const DetailsScreen({super.key, required this.item, this.isOfficer});
 
   @override
-  State<DetailsScreen> createState() => _DetailsScreenState();
+  ConsumerState<DetailsScreen> createState() => _DetailsScreenState();
 }
 
-class _DetailsScreenState extends State<DetailsScreen> {
+class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   int _activeRuleIndex = 0;
   late final PageController _pageController = PageController(initialPage: 0);
 
@@ -33,6 +37,79 @@ class _DetailsScreenState extends State<DetailsScreen> {
   /// E-Commerce Twin data: twice-daily price history & product violation history
   Map<String, dynamic>? _ecommerceTwinData;
   bool _loadingEcommerceTwin = false;
+
+  bool get _isOfficer {
+    if (widget.isOfficer == true) return true;
+    try {
+      final role = ref.read(authProvider).role;
+      if (role == UserRoleState.officer) return true;
+    } catch (_) {}
+    final item = widget.item;
+    if (item['type'] == 'COMPLAINT') return true;
+    if (item.containsKey('complaint_id')) return true;
+    return false;
+  }
+
+  final ApiClient _apiClient = ApiClient();
+
+  Future<void> _handleOfficerDecision(
+    bool isComplaint,
+    String scanOrComplaintId,
+    String decision,
+  ) async {
+    String officerId = '00000000-0000-0000-0000-000000000001';
+    try {
+      final auth = ref.read(authProvider);
+      if (auth.userId.isNotEmpty) officerId = auth.userId;
+    } catch (_) {}
+
+    try {
+      if (isComplaint) {
+        final status = decision == 'ACCEPT' ? 'RESOLVED' : 'REJECTED';
+        await _apiClient.reviewComplaint(
+          scanOrComplaintId,
+          officerId,
+          status,
+          'Officer Raj recorded decision $decision from details evaluation screen',
+        );
+      } else {
+        await _apiClient.submitReview(
+          scanOrComplaintId,
+          officerId,
+          decision,
+          'Officer Raj recorded decision $decision from details evaluation screen',
+        );
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                decision == 'ACCEPT' ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text('${isComplaint ? 'Complaint' : 'Scan'} marked as $decision.'),
+            ],
+          ),
+          backgroundColor: decision == 'ACCEPT' ? AppTheme.successGreen : AppTheme.dangerRed,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error recording officer decision: $e'),
+          backgroundColor: AppTheme.dangerRed,
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -136,120 +213,59 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   // --- Top Navigation Header ---
   Widget _buildHeader(BuildContext context, bool isComplaint, String scanId) {
-    return Column(
-      children: [
-        // Action Bar Row
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Back Circular Glass Button
-            GestureDetector(
-              onTap: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  context.go('/home');
-                }
-              },
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 16,
-                  color: AppTheme.slate700,
+    final String pageSubtitle = isComplaint
+        ? 'Complaint Evaluation'
+        : (_isOfficer ? 'Inspection Evaluation' : 'Scan Breakdown');
+    final String badge = isComplaint ? 'GRIEVANCE' : (_isOfficer ? 'ENFORCEMENT' : 'LMPC 2011');
+
+    return NirikshakAppBar(
+      badgeText: badge,
+      subtitle: pageSubtitle,
+      showBackButton: true,
+      onBack: () {
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        } else {
+          context.go('/home');
+        }
+      },
+      trailing: GestureDetector(
+        onTap: () => _downloadPdfReport(context, isComplaint, scanId),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.picture_as_pdf_rounded,
+                size: 14,
+                color: Color(0xFFF43F5E), // Rose 500
+              ),
+              SizedBox(width: 4),
+              Text(
+                'PDF',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.slate900,
                 ),
               ),
-            ),
-
-            // Center Branding & Title
-            Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.emerald600.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppTheme.emerald600.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: const Text(
-                    'NIRIKSHAK AI',
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                      color: AppTheme.emerald600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isComplaint ? 'Complaint Details' : 'Scan Breakdown',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                    color: AppTheme.slate900,
-                  ),
-                ),
-              ],
-            ),
-
-            // PDF Action Button
-            GestureDetector(
-              onTap: () => _downloadPdfReport(context, isComplaint, scanId),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.picture_as_pdf_rounded,
-                      size: 14,
-                      color: Color(0xFFF43F5E), // Rose 500
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'PDF',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.slate900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -341,6 +357,15 @@ class _DetailsScreenState extends State<DetailsScreen> {
     final int score = summary['compliance_score'] is int
         ? summary['compliance_score'] as int
         : (summary['compliance_score'] != null ? int.tryParse(summary['compliance_score'].toString()) ?? dynamicScore : dynamicScore);
+    final bool hasFailedRules = evaluations.any((e) {
+      final st = (e['status'] ?? '').toString().toUpperCase();
+      return st == 'FAIL' || st == 'NON-COMPLIANT' || st == 'NON_COMPLIANT' || st == 'VIOLATION' || st == 'FALSE';
+    });
+    final overallStatus = (item['overall_compliance'] ?? item['status'] ?? '').toString().toUpperCase();
+    final bool isOverallCompliant = (overallStatus == 'PASS' || overallStatus == 'COMPLIANT' || overallStatus.isEmpty)
+        && !hasFailedRules
+        && (totalRules == 0 || passedRules == totalRules)
+        && (score == 100);
     final imageUrls = (item['image_urls'] as Map?) ?? {};
 
     // Format declarations — NO hardcoded fallbacks; show null as missing
@@ -389,12 +414,25 @@ class _DetailsScreenState extends State<DetailsScreen> {
         const SizedBox(height: 20),
 
         // 3. RULE CAROUSEL CARD (Rule #1 of N)
-        _buildRuleCarouselCard(evaluations, mrpValue, mfgDate, expDate, score),
+        _buildRuleCarouselCard(evaluations, mrpValue, mfgDate, expDate, score, isOverallCompliant),
 
         const SizedBox(height: 18),
 
         // 4. REGULATION COMPLIANCE SCORE CARD
-        _buildComplianceScoreCard(score),
+        _buildComplianceScoreCard(score, isOverallCompliant),
+
+        // 4B. REPORT OVERPRICING CALLOUT CARD (Rule 18(2) LMPC Act) - CITIZENS ONLY
+        if (!_isOfficer) ...[
+          const SizedBox(height: 18),
+          _buildReportOverpricingCard(
+            context: context,
+            mrpValue: mrpValue,
+            prodName: prodName,
+            mfgName: mfgName,
+            scanId: scanId,
+            imageUrls: imageUrls,
+          ),
+        ],
 
         const SizedBox(height: 20),
 
@@ -678,6 +716,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
     String? mfgDate,
     String? expDate,
     int complianceScore,
+    bool isOverallPass,
   ) {
     final rulesList = [
       {
@@ -718,7 +757,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 final isSummary = currentRule['is_summary'] == true;
                 
                 if (isSummary) {
-                  final bool isOverallPass = complianceScore >= 80;
                   return _buildSummarySlide(isOverallPass, complianceScore, index, rulesList.length);
                 } else {
                   final String ruleId = (currentRule['rule_id'] ?? currentRule['rule_code'] ?? '').toString();
@@ -797,7 +835,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         ),
         const SizedBox(height: 4),
         Icon(
-          isPass ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
+          isPass ? Icons.check_circle_outline_rounded : Icons.cancel_rounded,
           size: 72,
           color: isPass ? AppTheme.successGreen : AppTheme.dangerRed,
         ),
@@ -843,7 +881,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
-              isPass ? Icons.check_circle_rounded : Icons.error_rounded,
+              isPass ? Icons.check_circle_rounded : Icons.cancel_rounded,
               color: isPass ? AppTheme.successGreen : AppTheme.dangerRed,
               size: 24,
             ),
@@ -1151,7 +1189,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 
   // --- 4. Regulation Compliance Score Card ---
-  Widget _buildComplianceScoreCard(int score) {
+  Widget _buildComplianceScoreCard(int score, bool isOverallCompliant) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1178,7 +1216,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 CircularProgressIndicator(
                   value: score / 100,
                   backgroundColor: AppTheme.slate200,
-                  color: score >= 80 ? AppTheme.emerald600 : (score >= 50 ? AppTheme.warningOrange : AppTheme.dangerRed),
+                  color: isOverallCompliant ? AppTheme.emerald600 : (score >= 50 ? AppTheme.warningOrange : AppTheme.dangerRed),
                   strokeWidth: 5.5,
                 ),
                 Text(
@@ -1214,18 +1252,18 @@ class _DetailsScreenState extends State<DetailsScreen> {
                     ),
                     const SizedBox(width: 6),
                     PulseIndicator(
-                      color: score >= 80 ? AppTheme.emerald600 : AppTheme.warningOrange,
+                      color: isOverallCompliant ? AppTheme.emerald600 : AppTheme.dangerRed,
                       size: 7,
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  score >= 80 ? 'Compliant with LMPC PC Rules 2011' : 'Non-compliance flags detected',
+                  isOverallCompliant ? 'Compliant with LMPC PC Rules 2011' : 'Non-compliance flags detected',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: score >= 80 ? AppTheme.emerald600 : AppTheme.dangerRed,
+                    color: isOverallCompliant ? AppTheme.emerald600 : AppTheme.dangerRed,
                   ),
                 ),
                 const SizedBox(height: 1),
@@ -2216,10 +2254,72 @@ class _DetailsScreenState extends State<DetailsScreen> {
   // --- Complaint View Fallback ---
   Widget _buildComplaintDetails(BuildContext context) {
     final item = widget.item;
+    final status = (item['status'] ?? 'SUBMITTED').toString().toUpperCase();
+    final isResolved = status == 'RESOLVED' || status == 'ACCEPT' || status == 'ACCEPTED';
+    final isRejected = status == 'REJECTED';
+    final double? paidPrice = double.tryParse(item['paid_price']?.toString() ?? '');
+    final double? printedMrp = double.tryParse(item['printed_mrp']?.toString() ?? '');
+    final bool isOvercharged = paidPrice != null && printedMrp != null && paidPrice > printedMrp;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Statutory Violation & Complaint Status Card
+        GlassCard(
+          padding: const EdgeInsets.all(14),
+          borderRadius: 18,
+          borderColor: isResolved
+              ? AppTheme.emerald400.withValues(alpha: 0.4)
+              : AppTheme.dangerRed.withValues(alpha: 0.4),
+          backgroundColor: isResolved
+              ? const Color(0xFFF0FDF4).withValues(alpha: 0.9)
+              : const Color(0xFFFEF2F2).withValues(alpha: 0.9),
+          child: Row(
+            children: [
+              Icon(
+                isResolved ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                color: isResolved ? AppTheme.emerald600 : AppTheme.dangerRed,
+                size: 30,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isResolved
+                          ? 'COMPLAINT RESOLVED'
+                          : (isRejected
+                              ? 'COMPLAINT REJECTED'
+                              : (isOvercharged
+                                  ? 'RULE 18(2) VIOLATION: NON-COMPLIANT'
+                                  : 'GRIEVANCE PENDING AUDIT')),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: isResolved ? AppTheme.emerald700 : AppTheme.dangerRed,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isOvercharged
+                          ? 'Paid ₹$paidPrice exceeds printed MRP ₹$printedMrp. Illegal dual pricing under LMPC PC Rules, 2011.'
+                          : (isResolved
+                              ? 'This consumer complaint has been verified and settled.'
+                              : 'Status: $status. Pending legal metrology verification.'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isResolved ? AppTheme.slate600 : const Color(0xFF991B1B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         GlassCard(
           padding: const EdgeInsets.all(14),
           borderRadius: 18,
@@ -2307,10 +2407,152 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
   }
 
+  // --- Report Overpricing Callout Card (Rule 18(2) LMPC Act) ---
+  Widget _buildReportOverpricingCard({
+    required BuildContext context,
+    required String? mrpValue,
+    required String? prodName,
+    required String? mfgName,
+    required String scanId,
+    required Map imageUrls,
+  }) {
+    double? parsedMrp;
+    if (mrpValue != null) {
+      final clean = mrpValue.replaceAll(RegExp(r'[^0-9.]'), '');
+      parsedMrp = double.tryParse(clean);
+    }
+    final frontImg = imageUrls['front'] ?? imageUrls['main'] ?? imageUrls['front_url'];
+
+    void navigateToComplaint() {
+      context.push(
+        '/complaint',
+        extra: {
+          'mrp': parsedMrp,
+          'product_name': prodName,
+          'manufacturer_name': mfgName,
+          'product_image_path': frontImg?.toString(),
+          'scan_id': scanId,
+        },
+      );
+    }
+
+    return GlassCard(
+      borderRadius: 20,
+      padding: const EdgeInsets.all(16),
+      borderColor: const Color(0xFFFCA5A5).withValues(alpha: 0.6),
+      backgroundColor: const Color(0xFFFFF1F2).withValues(alpha: 0.85),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.dangerRed.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.price_change_rounded,
+                  color: AppTheme.dangerRed,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE11D48).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'LMPC RULE 18(2) OVERPRICING GRIEVANCE',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFBE123C),
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Charged More Than Printed MRP?',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.slate900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            parsedMrp != null
+                ? 'The detected packaging ceiling price is ₹${parsedMrp.toStringAsFixed(parsedMrp.truncateToDouble() == parsedMrp ? 0 : 2)}. Under Rule 18(2) of the Legal Metrology Act, no retailer may legally charge above this price.'
+                : 'Under Rule 18(2) of the Legal Metrology Act, no retailer or seller may legally demand more than the printed MRP inclusive of all taxes.',
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppTheme.slate700,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: navigateToComplaint,
+              icon: const Icon(Icons.campaign_rounded, size: 18, color: Colors.white),
+              label: const Text(
+                'REPORT OVERPRICING NOW',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE11D48),
+                foregroundColor: Colors.white,
+                elevation: 3,
+                shadowColor: const Color(0x66E11D48),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- Floating Dock Bottom Action Bar ---
   Widget _buildFloatingDock(BuildContext context, bool isComplaint, String scanId) {
+    final item = widget.item;
+    final declarations = (item['extracted_declarations'] as Map?) ?? {};
+    final prodName = (declarations['generic_product_name'] ?? declarations['generic_name'] ?? declarations['product_name'])?.toString();
+    final mfgName = (declarations['manufacturer_name'] ?? declarations['packer_name'] ?? declarations['importer_name'])?.toString();
+    final imageUrls = (item['image_urls'] as Map?) ?? {};
+    final mrpValue = declarations['mrp']?.toString();
+    double? parsedMrp;
+    if (mrpValue != null) {
+      final clean = mrpValue.replaceAll(RegExp(r'[^0-9.]'), '');
+      parsedMrp = double.tryParse(clean);
+    }
+    final frontImg = imageUrls['front'] ?? imageUrls['main'] ?? imageUrls['front_url'];
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -2336,95 +2578,266 @@ class _DetailsScreenState extends State<DetailsScreen> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            // Re-scan Button
-            Expanded(
-              flex: 1,
-              child: GestureDetector(
-                onTap: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  } else {
-                    context.go('/scan');
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.slate200),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.crop_free_rounded, size: 16, color: AppTheme.slate700),
-                      SizedBox(width: 5),
-                      Text(
-                        'Re-scan',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.slate800,
+        child: _isOfficer
+            ? Row(
+                children: [
+                  // Officer ACCEPT Button
+                  Expanded(
+                    flex: 5,
+                    child: GestureDetector(
+                      onTap: () => _handleOfficerDecision(isComplaint, scanId, 'ACCEPT'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.emerald600,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.emerald600.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
+                            SizedBox(width: 5),
+                            Text(
+                              'ACCEPT',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ),
 
-            const SizedBox(width: 8),
+                  const SizedBox(width: 8),
 
-            // Export Full Report Button
-            Expanded(
-              flex: 2,
-              child: GestureDetector(
-                onTap: () => _downloadPdfReport(context, isComplaint, scanId),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A), // Slate 900
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                  // Officer REJECT Button
+                  Expanded(
+                    flex: 5,
+                    child: GestureDetector(
+                      onTap: () => _handleOfficerDecision(isComplaint, scanId, 'REJECT'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.dangerRed,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.dangerRed.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.cancel_rounded, size: 16, color: Colors.white),
+                            SizedBox(width: 5),
+                            Text(
+                              'REJECT',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Export Audit Report',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+
+                  const SizedBox(width: 8),
+
+                  // Export Report Button
+                  Expanded(
+                    flex: 4,
+                    child: GestureDetector(
+                      onTap: () => _downloadPdfReport(context, isComplaint, scanId),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.picture_as_pdf_rounded, size: 14, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              'PDF',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  // Re-scan Button
+                  Expanded(
+                    flex: 5,
+                    child: GestureDetector(
+                      onTap: () {
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        } else {
+                          context.go('/scan');
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
                           color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppTheme.slate200),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.crop_free_rounded, size: 15, color: AppTheme.slate700),
+                            SizedBox(width: 4),
+                            Text(
+                              'Re-scan',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.slate800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(width: 6),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 15,
-                        color: Color(0xFF34D399), // Emerald 400
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+
+                  const SizedBox(width: 6),
+
+                  // Report Overpricing Button
+                  Expanded(
+                    flex: 6,
+                    child: GestureDetector(
+                      onTap: () {
+                        context.push(
+                          '/complaint',
+                          extra: {
+                            'mrp': parsedMrp,
+                            'product_name': prodName,
+                            'manufacturer_name': mfgName,
+                            'product_image_path': frontImg?.toString(),
+                            'scan_id': scanId,
+                          },
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFECDD3)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFE11D48).withValues(alpha: 0.06),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.report_problem_rounded, size: 15, color: Color(0xFFE11D48)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Report MRP',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFBE123C),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  // Export Full Report Button
+                  Expanded(
+                    flex: 7,
+                    child: GestureDetector(
+                      onTap: () => _downloadPdfReport(context, isComplaint, scanId),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Export Report',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 14,
+                              color: Color(0xFF34D399),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

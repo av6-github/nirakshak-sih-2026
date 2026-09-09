@@ -37,11 +37,20 @@ class LoginScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.scale_rounded,
-                      color: AppTheme.emerald400,
-                      size: 34,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/images/nirikshak_logo.jpeg',
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Center(
+                        child: Icon(
+                          Icons.verified_user_rounded,
+                          color: AppTheme.emerald400,
+                          size: 34,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -102,7 +111,7 @@ class LoginScreen extends ConsumerWidget {
               const SizedBox(height: 12),
 
               _RoleCard(
-                title: 'Citizen / Consumer',
+                title: 'Citizen / Consumer (Dev)',
                 subtitle: 'Scan products, check compliance & file complaints',
                 icon: Icons.person_outline_rounded,
                 isSelected: auth.role == UserRoleState.citizen,
@@ -114,7 +123,7 @@ class LoginScreen extends ConsumerWidget {
               const SizedBox(height: 10),
 
               _RoleCard(
-                title: 'Enforcement Officer',
+                title: 'Enforcement Officer (Raj)',
                 subtitle: 'Inspect products, review queue & verify evidence',
                 icon: Icons.badge_outlined,
                 isSelected: auth.role == UserRoleState.officer,

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../core/api_client.dart';
 import '../core/theme.dart';
 import '../widgets/aura_background.dart';
-import '../widgets/pulse_indicator.dart';
+import '../widgets/nirikshak_app_bar.dart';
 
 class RulesChatScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -239,68 +239,28 @@ class _RulesChatScreenState extends State<RulesChatScreen> with SingleTickerProv
   Widget _buildTopBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
+      child: NirikshakAppBar(
+        badgeText: 'RAG LEGAL AI',
+        subtitle: 'LMPC Legal Counsel & Rules',
+        showBackButton: true,
+        onBack: () => Navigator.of(context).maybePop(),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppTheme.slate900,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.slate800),
-                onPressed: () => Navigator.of(context).maybePop(),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'LMPC Legal Counsel',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: AppTheme.slate900,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const PulseIndicator(color: AppTheme.emerald600, size: 6),
-                      const SizedBox(width: 5),
-                      Text(
-                        'ChromaDB RAG + Groq LLM Active',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.emerald600.withValues(alpha: 0.9),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              Icon(Icons.verified_outlined, size: 12, color: AppTheme.emerald400),
+              SizedBox(width: 4),
+              Text(
+                'Act 2009',
+                style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
               ),
             ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.slate900,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.verified_outlined, size: 12, color: AppTheme.emerald400),
-                SizedBox(width: 4),
-                Text(
-                  'Act 2009',
-                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
