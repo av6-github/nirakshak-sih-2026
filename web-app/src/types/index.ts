@@ -1,0 +1,89 @@
+export interface Complaint {
+  complaint_id: string;
+  citizen_id: string;
+  paid_price: number;
+  printed_mrp: number;
+  shopkeeper_name?: string;
+  shop_address?: string;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'RESOLVED' | 'REJECTED';
+  description?: string;
+  created_at: string;
+  receipt_image_url?: string;
+  product_image_url?: string;
+  resolution_notes?: string;
+}
+
+export interface ScanEvaluation {
+  rule_title: string;
+  status: 'PASS' | 'FAIL' | 'REVIEW' | string;
+  reason: string;
+  citation?: {
+    act_name?: string;
+    rule_reference?: string;
+    quote?: string;
+    section?: string;
+  };
+}
+
+export interface ScanItem {
+  scan_id: string;
+  status: string;
+  overall_compliance: 'PASS' | 'FAIL' | 'REVIEW' | string;
+  image_urls?: Record<string, string>;
+  created_at: string;
+  manufacturer_name?: string;
+  product_name?: string;
+  is_resolved: boolean;
+  decision?: string;
+  extracted_declarations?: Record<string, any>;
+  product_category?: string;
+  compliance_summary?: {
+    passed_rules: number;
+    failed_rules: number;
+    review_rules: number;
+    compliance_score: number;
+  };
+  evaluations?: ScanEvaluation[];
+}
+
+export interface BrandRating {
+  manufacturer_name: string;
+  total_scans: number;
+  passed_scans: number;
+  ai_compliance_score: number;
+  officer_rating?: 'RED' | 'YELLOW' | 'GREEN' | null;
+  officer_notes?: string | null;
+  last_rated_at?: string | null;
+}
+
+export interface BrandHistoryRecord {
+  scan_id: string;
+  date: string;
+  status: string;
+  product_name?: string;
+}
+
+export interface BrandDetail {
+  manufacturer_name: string;
+  total_scans: number;
+  compliance_score: number;
+  officer_rating?: string | null;
+  officer_rating_notes?: string | null;
+  history: BrandHistoryRecord[];
+}
+
+export interface Citation {
+  citation_id: string;
+  document: string;
+  rule: string;
+  excerpt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  citations?: Citation[];
+  suggested_followups?: string[];
+  timestamp: string;
+}

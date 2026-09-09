@@ -137,3 +137,46 @@ mobile/android/app/release/
 
 # Widget Preview related
 mobile/.widget_preview/
+
+
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+web-app/node_modules
+web-app/.pnp
+web-app/.pnp.*
+web-app/.yarn/*
+!web-app/.yarn/patches
+!web-app/.yarn/plugins
+!web-app/.yarn/releases
+!web-app/.yarn/versions
+
+# testing
+web-app/coverage
+
+# next.js
+web-app/.next/
+web-app/out/
+
+# production
+web-app/build
+
+# misc
+web-app/.DS_Store
+web-app/*.pem
+
+# debug
+web-app/npm-debug.log*
+web-app/yarn-debug.log*
+web-app/yarn-error.log*
+web-app/.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+web-app/.env*
+
+# vercel
+web-app/.vercel
+
+# typescript
+web-app/*.tsbuildinfo
+web-app/next-env.d.ts
