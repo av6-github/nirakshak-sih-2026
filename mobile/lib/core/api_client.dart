@@ -10,11 +10,12 @@ class ApiClient {
 
   static String get getBaseUrl {
     if (kIsWeb) {
-      return 'http://localhost:8080';
+      return 'http://140.238.224.196:8080';
     }
-    // Automatically use the computer's local Wi-Fi IP address for wireless app usage!
-    // Both phone and PC must be on the same Wi-Fi network.
-    return 'http://192.168.0.147:8080';
+    if (Platform.isAndroid) {
+      return 'http://140.238.224.196:8080';
+    }
+    return 'http://140.238.224.196:8080';
   }
 
   ApiClient._internal() {

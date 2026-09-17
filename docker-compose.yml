@@ -57,7 +57,7 @@ services:
   # MinIO - Object Storage (S3-compatible)
   # ============================================
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: nirikshak-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
