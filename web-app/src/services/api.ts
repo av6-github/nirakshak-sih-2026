@@ -1,6 +1,9 @@
 import { Complaint, ScanItem, BrandRating, BrandDetail, ChatMessage } from '../types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const isServer = typeof window === 'undefined';
+const API_BASE_URL = isServer 
+  ? (process.env.NEXT_PUBLIC_API_URL || 'http://140.238.224.196:8080') 
+  : '/api/proxy';
 
 // Mock fallback data for rich offline demonstration
 const MOCK_COMPLAINTS: Complaint[] = [
